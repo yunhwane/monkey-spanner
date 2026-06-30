@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 06 — 알림 보내기 & 상태 기억 (중복 방지)</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<div class="kicker">Loop Engineering · Lesson 06</div>
+<h1>알림 보내기 & 상태 기억 — 같은 에러를 두 번 알리지 마라</h1>
+
+<p>Lesson 05의 모니터링 루프엔 치명적 문제가 하나 있습니다.
+<code>/loop</code>나 cron으로 도는 틱은 <strong>매번 새 프로세스라 기억이 없어요.</strong>
+그래서 같은 에러를 5분마다 영원히 알립니다. 오늘 끝나면 당신은 <strong>틱 사이에 상태를 기억시켜
+중복 알림을 막고, 진짜 알림 채널로 내보낼</strong> 수 있습니다.</p>
+
+<div class="callout">
+<div class="label">핵심 문제 — 루프는 기본적으로 기억상실증</div>
+<div class="loop-diagram">09:00 틱  ERROR 3건 발견 → 알림 3개   "처음 보네!"
+09:05 틱  (새 프로세스, 기억 없음)
+         ERROR 3건 발견 → 또 알림 3개  "처음 보네!"  ← 같은 에러를 또
+09:10 틱  ... 또 ... 무한 알림 폭주 😱</div>
+</div>
+
+<h2>해법 — 틱 사이를 잇는 durable memory</h2>
+<p>거창한 DB는 필요 없습니다. <strong>파일 하나</strong>면 충분해요(ponytail). 본 에러의 지문(fingerprint)을
+파일에 적어두고, 다음 틱엔 그걸 읽어서 <em>새 에러만</em> 알립니다.</p>
+
+<div class="callout">
+<div class="label">오늘의 핵심 한 가지</div>
+<p style="margin:.5rem 0 0"><strong>상태 없는 틱 + 영속 파일 = 기억하는 루프.</strong>
+"메모리"란 거창한 게 아니라, <em>한 회차의 결과를 다음 회차가 읽을 수 있게 디스크에 남기는 것</em>입니다.
+이게 에이전트 메모리의 본질이에요.</p>
+</div>
+
+<h2>지문(fingerprint) 트릭 — '같은 종류'를 같게 보기</h2>
+<p>에러 줄을 통째로 비교하면 타임스탬프 때문에 매번 "새 에러"가 됩니다.
+변하는 부분(숫자·시각)을 지우고 해시하면 <strong>같은 종류의 에러는 같은 지문</strong>이 돼요.</p>
+<pre><code>def fingerprint(line):
+    norm = re.sub(r"\d+", "#", line)      # 숫자/타임스탬프 → # 로 정규화
+    return hashlib.sha1(norm.encode()).hexdigest()[:10]
+# "09:03 ERROR db timeout" 과 "09:04 ERROR db timeout" → 같은 지문</code></pre>
+
+<h2>직접 돌려 보기 — 두 번 실행이 포인트</h2>
+<p><code>agents/monitor_alert.py</code> 를 준비해 뒀습니다. <strong>두 번 연속</strong> 실행해 보세요:</p>
+<pre><code>cd /Users/jeonyh/Documents/loop-engineering/agents
+python3 monitor_alert.py      # 1회차: 새 에러라 알림 발생
+python3 monitor_alert.py      # 2회차: ✅ "새 에러 없음" — 기억이 작동!</code></pre>
+<p>핵심 코드:</p>
+<pre><code>SEEN = Path("seen.json")              # ★ durable memory
+
+def tick():
+    seen = load_seen()                # 지난 기억 읽기
+    new = [e for e in errors() if fingerprint(e) not in seen]   # 새것만
+    for e in new:
+        notify(e.strip())             # 알림 전송
+        seen.add(fingerprint(e))
+    save_seen(seen)                   # 기억 저장 → 다음 틱이 읽음
+</code></pre>
+
+<h2>알림 채널 — notify() 하나만 바꾸면 끝</h2>
+<p>지금 <code>notify()</code>는 출력+파일입니다. 진짜 채널로 바꾸는 건 <strong>한 함수 교체</strong>:</p>
+<pre><code>def notify(msg):
+    # Slack incoming webhook 예시:
+    subprocess.run(["curl", "-sX", "POST", "-H", "Content-type: application/json",
+                    "-d", json.dumps({"text": msg}), SLACK_WEBHOOK_URL])
+    # 또는 macOS 알림: subprocess.run(["osascript","-e",f'display notification "{msg}"'])</code></pre>
+
+<div class="callout win">
+<div class="label">당신의 차례 (Your turn)</div>
+<p style="margin:.5rem 0 0">1. 1·2회차를 돌려 중복 방지를 눈으로 확인하세요. (<code>seen.json</code>이 생깁니다)<br>
+2. <code>app.log</code>에 <strong>새 ERROR 줄을 한 줄 추가</strong>하고 다시 실행 → 그것만 알림 오나요?<br>
+3. <code>notify()</code>를 macOS 알림(<code>osascript</code>)이나 당신의 Slack 웹훅으로 바꿔보세요.</p>
+</div>
+
+<div class="callout">
+<div class="label">정직한 한계 (ponytail:)</div>
+<p style="margin:.5rem 0 0"><code>new</code>를 틱 시작에 한 번에 계산하므로, <strong>한 틱 안에서</strong> 같은 종류 에러가
+여러 줄이면 그 회차엔 둘 다 알립니다(다음 틱부턴 안 함). 회차 내 중복까지 막으려면
+루프 안에서 <code>seen</code>을 즉시 갱신·검사하세요. 지금은 "회차 간 중복 방지"가 목표라 이대로 둡니다.</p>
+</div>
+
+<h2>이해 확인 (전체 복습)</h2>
+
+<div class="quiz" data-ok="정답! 디스크에 남겨야 다음 틱이 읽습니다." data-no="새 프로세스는 메모리 변수를 잃죠 — 어디 남겨야?">
+  <div class="q">Q. cron으로 도는 틱이 상태를 기억하려면?</div>
+  <button data-correct="false">전역 변수에 저장한다</button>
+  <button data-correct="true">파일 등 영속 저장소에 남긴다</button>
+  <button data-correct="false">프롬프트를 더 길게 쓴다</button>
+  <button data-correct="false">모델에게 외워달라 한다</button>
+  <div class="fb"></div>
+</div>
+
+<div class="quiz" data-ok="정답! 변하는 부분을 지워 같게 만듭니다." data-no="타임스탬프 때문에 매번 달라지는 걸 어떻게 묶죠?">
+  <div class="q">Q. fingerprint에서 숫자를 <code>#</code>로 바꾸는 이유는?</div>
+  <button data-correct="false">해시를 더 짧게 하려고</button>
+  <button data-correct="true">같은 종류 에러를 같게 묶으려고</button>
+  <button data-correct="false">로그 용량을 줄이려고</button>
+  <button data-correct="false">보안을 위해 가리려고</button>
+  <div class="fb"></div>
+</div>
+
+<hr>
+
+<h3>더 볼 자료</h3>
+<p>에이전트의 메모리·컨텍스트를 다룹니다.<br>
+👉 <a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">Anthropic — Effective context engineering for AI agents</a></p>
+
+<div class="callout">
+<div class="label">막히면 선생에게</div>
+<p style="margin:.5rem 0 0">Slack/메일/문자 중 어떤 채널로 알림을 받고 싶은지 말해주면 <code>notify()</code>를 그에 맞게
+짜드립니다. 그리고 이제 — <strong>Lesson 01~06을 합치면 "내 로그를 주기적으로 점검하고,
+이상하면 Claude가 조사하고, 새 문제만 Slack으로 알리는" 완전한 에이전트</strong>가 됩니다. 🎉</p>
+</div>
+
+<footer>
+<p class="nav">
+참조: <a href="../reference/agent-loop-cheatsheet.html">에이전트 루프 치트시트 ↗</a><br>
+이전: <a href="0005-monitoring-loop.html">05 — 모니터링 루프</a> &nbsp;·&nbsp;
+다음 (예정): <strong>Lesson 07 — 전체 합치기 & 안정성(에러 처리·재시도)</strong>
+</p>
+</footer>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

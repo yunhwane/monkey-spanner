@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 04 — model() 자리에 진짜 에이전트 (Claude CLI)</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<div class="kicker">Loop Engineering · Lesson 04</div>
+<h1>model() 자리에 진짜 에이전트 — Claude Code CLI</h1>
+
+<p>여태 <code>model()</code>은 <code>state["v"] + 1</code> 같은 장난감이었습니다.
+오늘 그 자리에 <strong>진짜 에이전트</strong>를 끼웁니다. 그리고 가장 게으른(=효율적인) 방법은
+API SDK가 아니라 — <strong>당신이 이미 쓰는 <code>claude</code> CLI를 그대로 호출</strong>하는 거예요.
+끝나면 당신은 <strong>첫 진짜 에이전트 루프</strong>를 손에 쥡니다.</p>
+
+<div class="callout">
+<div class="label">먼저 알아야 할 한 가지</div>
+<p style="margin:.5rem 0 0"><strong>Claude Code 자체가 이미 루프다.</strong>
+파일을 찾고(gather) → 고치고(act) → 테스트 돌려보는(verify) 걸 내부에서 합니다.
+그래서 우리가 만드는 바깥 루프는 <em>그 에이전트를 한 단계로 호출</em>하고,
+<strong>verify와 가드레일은 우리가 직접 통제</strong>합니다. Lesson 01–03이 전부 여기서 쓰입니다.</p>
+</div>
+
+<h2>먼저 30초: 헤드리스 모드 확인</h2>
+<p>대화창 없이 한 번 불러봅니다. 터미널에:</p>
+<pre><code>claude -p "2 더하기 2는?"</code></pre>
+<p>답만 출력하고 끝나죠? <code>-p</code>(=<code>--print</code>)가 <strong>헤드리스 모드</strong>입니다 — 스크립트에서 부를 수 있는 형태.
+이게 우리 루프의 <code>model()</code>이 됩니다.</p>
+
+<h2>핵심 플래그 (외울 건 네 개뿐)</h2>
+<ul>
+<li><code>-p "프롬프트"</code> — 헤드리스 실행, 출력 후 종료</li>
+<li><code>--output-format json</code> — 결과+메타데이터를 JSON으로 (파싱하기 좋음)</li>
+<li><code>--allowedTools Edit Read</code> — 에이전트가 쓸 수 있는 도구 화이트리스트</li>
+<li><code>--permission-mode acceptEdits</code> — 파일 편집은 자동 승인(but 위험한 건 막힘)</li>
+</ul>
+
+<div class="callout">
+<div class="label">⚠️ 보안 — 게을러도 여기선 게으르지 말 것</div>
+<p style="margin:.5rem 0 0"><code>--dangerously-skip-permissions</code> 는 <strong>모든 안전장치를 끕니다.</strong>
+스크립트에선 대신 <code>--allowedTools</code> 로 도구를 좁히고 <code>--permission-mode acceptEdits</code> 를 쓰세요.
+그리고 아래 실습은 <strong>파일을 실제로 수정하고 API 호출을 실제로 합니다</strong> — 반드시 빈 연습용 폴더에서 돌리세요.</p>
+</div>
+
+<h2>직접 만들어 보기 — 첫 진짜 코딩 에이전트</h2>
+<p>"테스트가 통과할 때까지 Claude가 함수를 고치는" 루프입니다. 배운 네 박자가 전부 들어있어요.
+빈 폴더를 만들고 아래 두 파일을 두세요.</p>
+
+<h3>1) 연습용 폴더 + 테스트 파일</h3>
+<pre><code>mkdir agent-demo && cd agent-demo
+
+# test_add.py  (검증 신호의 원천)
+cat &gt; test_add.py &lt;&lt;'PY'
+from solution import add
+def test_add():
+    assert add(2, 3) == 5
+    assert add(-1, 1) == 0
+PY
+
+# solution.py  (일부러 비워둠 — 에이전트가 채울 것)
+echo "def add(a, b):\n    pass" &gt; solution.py</code></pre>
+
+<h3>2) loop.py — 에이전트 루프</h3>
+<pre><code>import subprocess
+
+def claude(prompt):                          # ★ model() = 진짜 에이전트
+    subprocess.run([
+        "claude", "-p", prompt,
+        "--allowedTools", "Edit", "Read",
+        "--permission-mode", "acceptEdits",
+    ])
+
+def verify():                                # VERIFY = 객관적 신호 (Lesson 02)
+    r = subprocess.run(["python3", "-m", "pytest", "-q"])
+    return r.returncode == 0                 # exit 0 = 통과
+
+msg = "solution.py의 add() 함수를 구현해서 test_add.py가 통과하게 해줘."
+for step in range(5):                         # 가드레일 (Lesson 03)
+    print(f"\n=== step {step} ===")
+    claude(msg)                               # GATHER + ACT (에이전트가 내부에서 수행)
+    if verify():                              # VERIFY
+        print("✅ 테스트 통과 — 종료"); break
+    msg = "테스트가 아직 실패해. pytest 출력을 보고 add()를 고쳐줘."  # 피드백 (Lesson 01)
+else:
+    print("⛔ 5회 내 실패 — 가드레일 작동")</code></pre>
+
+<p><code>python3 loop.py</code> 로 실행하세요. Claude가 <code>solution.py</code>를 직접 고치고,
+당신의 루프가 pytest로 <strong>스스로 검증</strong>한 뒤, 통과하면 멈춥니다. — 첫 진짜 에이전트 완성. 🎉</p>
+
+<div class="callout win">
+<div class="label">방금 일어난 일 (네 박자 매핑)</div>
+<div class="loop-diagram">model()  = claude CLI 호출        ← 진짜 에이전트가 GATHER+ACT
+verify() = pytest exit code        ← 객관적 신호 (Lesson 02)
+range(5) = 최대 반복               ← 가드레일 (Lesson 03)
+msg 갱신 = 실패 출력 → 다음 회차    ← 피드백 (Lesson 01)</div>
+</div>
+
+<div class="callout win">
+<div class="label">당신의 차례 (Your turn)</div>
+<p style="margin:.5rem 0 0">1. <code>test_add.py</code>에 <strong>일부러 통과 불가능한 테스트</strong>(<code>assert add(2,3)==6</code>)를 넣고
+돌려보세요. 가드레일이 5회에서 멈추나요? (Lesson 03이 진짜로 작동하는지 확인)<br>
+2. 그다음 — <strong>당신의 실제 작업 하나</strong>를 떠올려, <code>verify()</code>를 그 작업의 객관적 신호로
+바꿔보세요. 막히면 채팅으로 물어보세요. 그게 다음 레슨입니다.</p>
+</div>
+
+<h2>이해 확인 (전체 복습)</h2>
+
+<div class="quiz" data-ok="정답! 화이트리스트가 안전합니다." data-no="다시 — 안전장치를 '끄지 않는' 쪽은?">
+  <div class="q">Q. 스크립트에서 claude를 부를 때 더 안전한 방식은?</div>
+  <button data-correct="true">--allowedTools 로 도구를 좁힌다</button>
+  <button data-correct="false">--dangerously-skip 으로 전부 허용</button>
+  <button data-correct="false">권한 없이 sudo 로 실행한다</button>
+  <button data-correct="false">검증을 생략하고 빠르게 돈다</button>
+  <div class="fb"></div>
+</div>
+
+<div class="quiz" data-ok="정답! 우리가 verify를 통제합니다." data-no="이 루프에서 '끝났다'를 누가 판단하죠?">
+  <div class="q">Q. 이 설계에서 "통과했다"는 판단을 내리는 주체는?</div>
+  <button data-correct="false">claude 가 스스로 끝났다고 말함</button>
+  <button data-correct="true">우리 루프의 pytest exit code</button>
+  <button data-correct="false">프롬프트의 자신감 있는 어조</button>
+  <button data-correct="false">출력 글자 수가 충분함</button>
+  <div class="fb"></div>
+</div>
+
+<hr>
+
+<h3>먼저 읽어볼 1차 출처</h3>
+<p>CLI를 코드로 감싸는 프로그래밍 버전(= Claude Agent SDK)의 공식 설명.<br>
+👉 <a href="https://www.anthropic.com/engineering/building-agents-with-the-claude-agent-sdk">Anthropic — Building agents with the Claude Agent SDK</a></p>
+<p class="cite">CLI로 충분하면 SDK는 나중에. SDK는 같은 걸 Python/TS 함수로 부르는 형태일 뿐 — 루프 설계 원리는 동일합니다.</p>
+
+<div class="callout">
+<div class="label">막히면 선생에게</div>
+<p style="margin:.5rem 0 0">실행이 안 되거나(권한/경로), "내 작업엔 verify를 어떻게 짜지?"가 막히면
+<strong>그 작업을 한 줄로 알려주세요.</strong> 당신 전용 루프를 같이 짭니다.</p>
+</div>
+
+<footer>
+<p class="nav">
+참조: <a href="../reference/agent-loop-cheatsheet.html">에이전트 루프 치트시트 ↗</a><br>
+이전: <a href="0003-termination-guardrails.html">03 — 가드레일</a> &nbsp;·&nbsp;
+다음 (예정): <strong>Lesson 05 — 당신의 실제 업무를 루프로</strong>
+</p>
+</footer>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

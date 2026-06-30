@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 03 — 종료 조건 & 가드레일</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<div class="kicker">Loop Engineering · Lesson 03</div>
+<h1>종료 조건 & 가드레일 — 멈출 줄 아는 루프</h1>
+
+<p>Lesson 02에서 루프는 <strong>객관적 신호로 "성공하면" 멈춘다</strong>고 배웠습니다.
+그런데 현실의 에이전트는 자주 <em>성공하지 못합니다.</em> 막히고, 같은 실수를 반복하고, 빙빙 돕니다.
+오늘 끝나면 당신은 <strong>헛도는 루프를 자동으로 감지해 조기에 멈추는 가드레일을 설계</strong>할 수 있습니다.</p>
+
+<div class="callout">
+<div class="label">먼저 떠올려 보기 (1초)</div>
+<p style="margin:.5rem 0 0">Lesson 01 코드의 <code>range(10)</code>은 어떤 가드레일이었죠?
+… <strong>최대 반복 횟수</strong>. 오늘은 그것만으로는 왜 부족한지, 뭘 더해야 하는지를 봅니다.</p>
+</div>
+
+<h2>루프가 멈추는 길은 둘뿐</h2>
+<div class="loop-diagram">① 성공 종료   객관적 신호 도달        verify() == True     ◀ Lesson 02
+② 포기 종료   가드레일 발동           더 해봐야 소용없음     ◀ 오늘
+
+둘 중 <strong>하나도 없으면 루프는 영원히 돈다 (또는 비용을 태운다).</strong></div>
+
+<h2>가드레일 세 종류</h2>
+<ul>
+<li><strong>최대 반복 (max steps)</strong> — 절대 상한. 안전망이지 전략은 아님.</li>
+<li><strong>무진전 감지 (no-progress)</strong> — "N회 연속 나아지지 않으면 중단". ★ 오늘의 핵심.</li>
+<li><strong>예산 한도 (budget)</strong> — 토큰/시간/비용 상한. 실제 LLM 루프에서 필수.</li>
+</ul>
+
+<div class="callout">
+<div class="label">오늘의 핵심 한 가지</div>
+<p style="margin:.5rem 0 0"><strong>max-steps만 두면 막힌 루프가 끝까지 헛돈다.</strong>
+50번 상한인데 5번째에 이미 막혔다면 45번을 낭비합니다.
+<em>진전(progress)을 점수로 재서, 안 오르면 일찍 포기</em>하게 만드세요.</p>
+</div>
+
+<h2>직접 만들어 보기 — 무진전 감지</h2>
+<p>아래 루프의 <code>model()</code>은 일부러 <strong>5에서 막힙니다</strong>(목표는 8). max-steps는 50이지만,
+무진전 가드레일이 <strong>3회째에 조기 종료</strong>시켜 낭비를 막습니다. 그대로 실행: <code>python3 guard.py</code>.</p>
+
+<pre><code>def model(state):
+    return min(state["v"] + 1, 5)     # 일부러 5에 막히는 가짜 에이전트 (목표=8)
+
+def score(candidate):                 # 진전을 '점수'로 잰다 (pass/fail보다 풍부한 신호)
+    return candidate                  # 높을수록 목표에 가까움
+
+state, best, stale = {"v": 0}, -1, 0
+for step in range(50):                         # 가드레일 ①: 절대 상한
+    cand = model(state)
+    s = score(cand)
+    print(f"step {step}: score {s}  (best {best}, stale {stale})")
+    if s >= 8:
+        print("✅ 성공 종료"); break
+    if s > best:
+        best, stale = s, 0                     # 진전 있음 → 카운터 리셋
+    else:
+        stale += 1                             # 진전 없음 → 누적
+    if stale >= 3:                             # 가드레일 ②: 무진전 감지
+        print(f"⛔ 3회 연속 무진전 (best={best}) — 조기 포기"); break
+    state["v"] = cand
+</code></pre>
+
+<p>실행하면 50번이 아니라 <strong>대략 8스텝 근처에서 멈춥니다.</strong> 막힌 걸 루프가 스스로 알아챈 거죠.</p>
+
+<div class="callout win">
+<div class="label">당신의 차례 (Your turn)</div>
+<p style="margin:.5rem 0 0">두 가지를 실험해 보세요. <strong>먼저 예측하고</strong> 실행하세요.<br>
+1. <code>min(state["v"] + 1, 5)</code> 의 <code>5</code>를 <code>9</code>로 바꾸면? (포기 vs 성공, 어느 쪽?)<br>
+2. <code>stale >= 3</code> 을 <code>stale >= 1</code> 로 바꾸면 더 빨리 멈출까, 너무 성급할까?<br>
+<em>이게 바로 가드레일 튜닝입니다 — 너무 빡빡하면 일찍 포기, 너무 느슨하면 낭비.</em></p>
+</div>
+
+<h2>이해 확인 (지난 레슨과 섞어서)</h2>
+
+<div class="quiz" data-ok="정답! max-steps는 낭비를 못 막습니다." data-no="다시 — '막힌 걸 일찍 아는' 가드레일은?">
+  <div class="q">Q. 루프가 5번째에 막혔는데 상한이 50이다. 낭비를 막는 가드레일은?</div>
+  <button data-correct="false">최대 반복 횟수를 100으로 늘린다</button>
+  <button data-correct="true">무진전 감지로 조기 종료한다</button>
+  <button data-correct="false">모델에게 더 노력하라고 한다</button>
+  <button data-correct="false">검증을 아예 끈다</button>
+  <div class="fb"></div>
+</div>
+
+<div class="quiz" data-ok="정답! 둘 다 있어야 안전합니다." data-no="루프가 멈추는 '두 길'을 떠올려 보세요.">
+  <div class="q">Q. 잘 설계된 루프가 반드시 가진 두 가지 종료 경로는?</div>
+  <button data-correct="true">성공 신호 도달 + 가드레일 발동</button>
+  <button data-correct="false">큰 모델 + 긴 프롬프트</button>
+  <button data-correct="false">사람 승인 + 재시작</button>
+  <button data-correct="false">캐시 적중 + 토큰 절약</button>
+  <div class="fb"></div>
+</div>
+
+<div class="quiz" data-ok="정답! 점수가 변화/진전을 보여줍니다." data-no="pass/fail보다 '얼마나 가까운지'를 주는 게 뭘까요?">
+  <div class="q">Q. 무진전 감지에 pass/fail 대신 <strong>점수(score)</strong>를 쓰는 이유는?</div>
+  <button data-correct="false">실행이 더 빨라서</button>
+  <button data-correct="true">조금씩의 진전을 측정할 수 있어서</button>
+  <button data-correct="false">토큰을 아껴서</button>
+  <button data-correct="false">모델이 더 똑똑해져서</button>
+  <div class="fb"></div>
+</div>
+
+<hr>
+
+<h3>먼저 읽어볼 1차 출처</h3>
+<p>오래 도는 에이전트의 가드레일·하네스를 다룹니다.<br>
+👉 <a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents">Anthropic — Effective harnesses for long-running agents</a></p>
+
+<div class="callout">
+<div class="label">막히면 선생에게</div>
+<p style="margin:.5rem 0 0">"내 작업에서 '진전'을 어떻게 점수로 잴까?"는 종종 가장 어려운 부분입니다.
+<strong>작업을 말해주면 진전 지표를 같이 설계</strong>해 드립니다. 그리고 이제 슬슬 —
+<strong>당신의 실제 업무 하나를 골라 진짜 루프로 만들 때</strong>가 됐어요.</p>
+</div>
+
+<footer>
+<p class="nav">
+참조: <a href="../reference/agent-loop-cheatsheet.html">에이전트 루프 치트시트 ↗</a><br>
+이전: <a href="0002-verification-signals.html">02 — 검증 신호</a> &nbsp;·&nbsp;
+다음 (예정): <strong>Lesson 04 — model() 자리에 진짜 LLM 붙이기</strong> (첫 실제 에이전트)
+</p>
+</footer>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

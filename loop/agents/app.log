@@ -1,0 +1,8 @@
+2026-06-30 09:01:12 INFO  server started on :8080
+2026-06-30 09:02:03 INFO  request GET /health 200
+2026-06-30 09:03:44 ERROR db connection timeout (pool exhausted)
+2026-06-30 09:03:45 INFO  retrying db connection
+2026-06-30 09:04:01 ERROR db connection timeout (pool exhausted)
+2026-06-30 09:04:30 INFO  request GET /users 200
+2026-06-30 09:05:10 ERROR unhandled exception in /checkout: NoneType has no attribute id
+2026-06-30 09:05:30 INFO  request GET /health 200

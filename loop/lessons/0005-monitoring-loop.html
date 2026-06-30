@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 05 — 당신의 실제 업무를 루프로 (로그 모니터링)</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<div class="kicker">Loop Engineering · Lesson 05</div>
+<h1>당신의 업무를 루프로 — 로그 모니터링</h1>
+
+<p>드디어 장난감을 벗어납니다. 오늘은 <strong>당신이 고른 실제 업무 — 로그/모니터링</strong> 을 루프로 만듭니다.
+그리고 여기엔 지금까지와 <strong>다른 종류의 루프</strong>가 등장해요.
+끝나면 당신은 <strong>시계에 맞춰 도는 모니터링 루프를 설계하고, 비용을 통제</strong>할 수 있습니다.</p>
+
+<div class="callout">
+<div class="label">새로운 한 가지 — 루프의 두 가지 모양</div>
+<div class="loop-diagram">완수형 루프 (Lesson 01–04)   성공하면 STOP        예: 테스트 통과까지 고치기
+모니터링 루프 (오늘)          멈추지 않고 시계로 반복  예: 1분마다 로그 점검</div>
+<p style="margin:.6rem 0 0">모니터링 루프는 "끝"이 없습니다. 종료 조건 대신 <strong>주기(interval)</strong>가 루프를 돌리고,
+<em>조건을 만족할 때만 행동</em>합니다.</p>
+</div>
+
+<h2>핵심 설계 비밀 — 싼 검사 먼저, 비싼 LLM은 나중</h2>
+<p>Lesson 02의 "싼 검증 먼저"가 여기서 빛납니다. 매 틱마다 Claude를 부르면 <strong>돈과 시간을 태웁니다.</strong>
+대신 이렇게 합니다:</p>
+<div class="loop-diagram">매 틱:  ① 싼 검사   grep/정규식으로 ERROR 개수 센다   (LLM 0원)
+        ② 분기      임계값 넘었나?
+        ③ 비싼 단계  넘었을 때만 claude -p 로 조사   (이때만 과금)</div>
+<div class="callout">
+<div class="label">오늘의 핵심 한 가지</div>
+<p style="margin:.5rem 0 0"><strong>LLM은 게이트 뒤에 둔다.</strong>
+값싼 결정적 검사로 "이상한가?"를 먼저 거르고, 진짜 판단이 필요할 때만 에이전트를 깨우세요.
+모니터링 루프의 비용은 거의 전부 이 설계에서 갈립니다.</p>
+</div>
+
+<h2>직접 돌려 보기 — 이미 만들어 뒀습니다</h2>
+<p><code>agents/monitor.py</code> 와 샘플 <code>agents/app.log</code>(ERROR 3건 포함)를 준비해 뒀어요. 한 박자 실행:</p>
+<pre><code>cd /Users/jeonyh/Documents/loop-engineering/agents
+python3 monitor.py</code></pre>
+<p>ERROR가 임계값(3) 이상이라 <strong>Claude가 조사·요약</strong>까지 갑니다. 핵심 코드:</p>
+<pre><code>def count_errors():                  # ① 싼 검사 — LLM 없이 정규식만
+    return len(re.findall(r"ERROR", open(LOG).read()))
+
+def investigate():                   # ③ 비싼 단계 — 임계값 넘을 때만
+    subprocess.run(["claude","-p", f"{LOG}의 ERROR 원인·대응 3줄 요약",
+                    "--allowedTools","Read"])
+
+def tick():                          # 루프의 '한 박자'
+    n = count_errors()
+    if n >= THRESHOLD:               # ② 객관적 신호로 분기
+        investigate()                #    넘을 때만 과금
+</code></pre>
+
+<h2>그럼 "반복"은 누가 시키나 — 스케줄러</h2>
+<p><code>tick()</code>은 한 번만 돕니다. 반복은 <strong>바깥의 시계</strong>가 담당해요. 세 가지 방법:</p>
+<ul>
+<li><strong>가장 게으른 길</strong> — Claude Code의 <code>/loop</code> 스킬:
+<br><code>/loop 5m python3 monitor.py</code> &nbsp;→ 5분마다 자동 실행. 직접 스케줄러 안 짜도 됨.</li>
+<li><strong>OS 스케줄러</strong> — cron: <code>*/5 * * * * cd .../agents && python3 monitor.py</code></li>
+<li><strong>자체 루프</strong> — <code>while True: tick(); time.sleep(300)</code> (가장 단순, 프로세스가 떠 있어야 함)</li>
+</ul>
+<p class="cite">완수형 루프는 코드 안에 <code>for/while</code>이 있었지만, 모니터링 루프는 "반복"을 스케줄러에 위임하는 게 보통입니다.</p>
+
+<h2>모니터링 루프의 가드레일 (다름!)</h2>
+<ul>
+<li><strong>알림 폭주 방지</strong> — 같은 에러로 매 틱 알리지 말 것. "새 에러일 때만" 또는 "마지막 알림 후 N분 경과 시만".</li>
+<li><strong>비용 상한</strong> — LLM 호출은 게이트 뒤에 (위에서 한 것).</li>
+<li><strong>임계값 튜닝</strong> — 너무 낮으면 노이즈, 너무 높으면 놓침. (Lesson 03의 가드레일 튜닝과 동일한 감각.)</li>
+</ul>
+
+<div class="callout win">
+<div class="label">당신의 차례 (Your turn)</div>
+<p style="margin:.5rem 0 0">1. <code>THRESHOLD</code>를 <code>10</code>으로 올리고 실행 → 이제 Claude를 안 부르죠? (게이트가 작동)<br>
+2. <strong>당신의 진짜 로그 경로</strong>로 <code>LOG</code>를 바꾸고, <code>count_errors()</code>의 정규식을
+당신 시스템의 실제 에러 패턴(<code>"Exception"</code>, <code>"5\\d\\d"</code> 등)으로 바꿔보세요.<br>
+3. 잘 되면 <code>/loop 5m python3 monitor.py</code> 로 진짜 주기 모니터를 켜보세요.</p>
+</div>
+
+<h2>이해 확인 (전체 복습)</h2>
+
+<div class="quiz" data-ok="정답! 게이트가 비용을 지킵니다." data-no="매 틱 LLM을 부르면 뭐가 문제죠?">
+  <div class="q">Q. 모니터링 루프에서 LLM 호출을 싼 검사 뒤에 두는 주된 이유는?</div>
+  <button data-correct="false">정확도가 높아져서</button>
+  <button data-correct="true">비용/시간 낭비를 막으려고</button>
+  <button data-correct="false">코드가 더 짧아져서</button>
+  <button data-correct="false">권한이 필요 없어서</button>
+  <div class="fb"></div>
+</div>
+
+<div class="quiz" data-ok="정답! 시계가 반복을 담당합니다." data-no="모니터링 루프엔 '끝'이 없죠 — 뭐가 반복시키나요?">
+  <div class="q">Q. 완수형 루프와 달리 모니터링 루프의 반복을 책임지는 것은?</div>
+  <button data-correct="false">verify 함수의 종료 조건</button>
+  <button data-correct="true">주기(스케줄러/interval)</button>
+  <button data-correct="false">모델의 자기보고</button>
+  <button data-correct="false">테스트 exit code</button>
+  <div class="fb"></div>
+</div>
+
+<hr>
+
+<h3>더 볼 자료</h3>
+<p>Claude Code의 <code>/loop</code> 스킬(주기 실행)과 오래 도는 에이전트의 운영.<br>
+👉 <a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents">Anthropic — Effective harnesses for long-running agents</a></p>
+
+<div class="callout">
+<div class="label">막히면 선생에게</div>
+<p style="margin:.5rem 0 0"><strong>당신의 실제 로그 형식을 한두 줄 붙여주세요.</strong>
+그 패턴에 맞는 <code>count_errors()</code> 정규식과 임계값을 같이 잡아드립니다.
+이게 "내 업무 전용 에이전트"의 완성입니다.</p>
+</div>
+
+<footer>
+<p class="nav">
+참조: <a href="../reference/agent-loop-cheatsheet.html">에이전트 루프 치트시트 ↗</a><br>
+이전: <a href="0004-real-agent-claude-cli.html">04 — 진짜 에이전트</a> &nbsp;·&nbsp;
+다음 (예정): <strong>Lesson 06 — 알림 보내기 & 상태 기억(중복 방지)</strong>
+</p>
+</footer>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

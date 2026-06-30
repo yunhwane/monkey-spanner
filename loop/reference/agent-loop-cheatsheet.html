@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reference — 에이전트 루프 치트시트</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<div class="kicker">Loop Engineering · Reference</div>
+<h1>에이전트 루프 치트시트</h1>
+<p class="cite">빠른 참조용. 레슨을 다시 안 보고도 핵심만 꺼내 쓰는 카드. (용어가 늘면 계속 갱신)</p>
+
+<h2>네 박자</h2>
+<div class="loop-diagram">GATHER  → 지금 상태/컨텍스트를 모은다
+ACT     → 도구를 호출해 한 걸음 행동한다
+VERIFY  → 객관적 신호로 진짜 됐는지 확인한다   ◀ 루프를 에이전트로 만드는 단계
+REPEAT  → 종료조건 충족? 아니면 GATHER로</div>
+
+<h2>핵심 용어 (provisional glossary)</h2>
+<p><strong>에이전트 (Agent)</strong><br>LLM이 도구를 루프 안에서 자율적으로 사용하는 것. <em>피하기: "챗봇", "AI"</em></p>
+<p><strong>검증 신호 (Verification signal)</strong><br>결과가 진짜인지 알려주는 증거. 테스트 통과, 컴파일 결과, API 200, 스크린샷. <em>피하기: "확인"</em></p>
+<p><strong>객관적 vs 주관적 신호</strong><br>객관적 = 코드/환경이 주는 사실(테스트 통과). 주관적 = 모델의 자기보고("다 된 듯"). <strong>객관적을 선호.</strong></p>
+<p><strong>가드레일 (Guardrail)</strong><br>루프 폭주를 막는 한계. 최대 반복 횟수, "N회 연속 진전 없으면 중단".</p>
+<p><strong>종료 조건 (Termination condition)</strong><br>루프를 멈추는 규칙. 성공 신호 도달 또는 가드레일 발동.</p>
+<p><strong>피드백 (Feedback)</strong><br>이번 회차의 VERIFY 결과를 다음 회차 컨텍스트로 넣는 것. 이게 끊기면 루프가 학습하지 못함.</p>
+
+<h2>model() 자리에 진짜 에이전트 (Claude CLI)</h2>
+<div class="loop-diagram">claude -p "프롬프트"              헤드리스 실행 후 종료 (= model())
+  --output-format json          JSON으로 결과+메타
+  --allowedTools Edit Read      도구 화이트리스트 (안전)
+  --permission-mode acceptEdits 편집 자동승인, 위험한 건 차단
+  -c / --resume                 대화 이어가기
+
+❗ --dangerously-skip-permissions = 안전장치 OFF. 스크립트에선 피할 것.
+❗ 파일을 실제 수정 + API 실제 호출 → 빈 연습 폴더에서.</div>
+<pre><code>def claude(p):
+    subprocess.run(["claude","-p",p,
+        "--allowedTools","Edit","Read",
+        "--permission-mode","acceptEdits"])
+# model()=claude  verify()=pytest exit code  range(N)=가드레일</code></pre>
+
+<h2>상태 기억 & 알림 (모니터링 루프)</h2>
+<div class="loop-diagram">문제: cron/loop 틱은 매번 새 프로세스 → 기억 없음 → 알림 폭주
+해법: durable memory = 파일 하나 (seen.json). DB 불필요.
+
+fingerprint: re.sub(r"\d+","#",line) 후 해시 → 같은 종류 에러 = 같은 id
+dedup:       new = [e for e in errors if fp(e) not in seen]
+notify():    한 함수만 교체 → print / Slack webhook / osascript / 메일</div>
+<pre><code>seen = load_seen()                       # 지난 기억
+new = [e for e in errors() if fp(e) not in seen]
+for e in new: notify(e); seen.add(fp(e))
+save_seen(seen)                          # 다음 틱이 읽음</code></pre>
+
+<h2>최소 루프 골격 (Python)</h2>
+<pre><code>state = initial_state()
+for step in range(MAX_STEPS):        # 가드레일
+    action = model(state)            # GATHER + ACT
+    result = run(action)             # ACT (도구 실행)
+    if verify(result):               # VERIFY
+        break                        # 종료 조건: 성공
+    state = update(state, result)    # 피드백 → 다음 회차
+else:
+    handle_giveup()                  # 종료 조건: 가드레일</code></pre>
+
+<h2>루프의 두 가지 모양</h2>
+<div class="loop-diagram">완수형    성공하면 STOP        for/while + verify   예: 테스트 통과까지
+모니터링  멈추지 않고 주기 반복  스케줄러가 반복      예: 1분마다 로그 점검
+
+모니터링 핵심: LLM은 게이트 뒤에.
+  매 틱 → ① 싼 검사(grep/정규식) → ② 임계값? → ③ 넘을 때만 claude -p
+반복 주체: /loop 5m ... · cron · while+sleep
+가드레일: 알림 폭주 방지(새 에러만/쿨다운) · 비용 상한 · 임계값 튜닝</div>
+
+<h2>멈추는 두 길 + 가드레일 (완수형)</h2>
+<div class="loop-diagram">① 성공 종료  verify() == True           (객관적 신호)
+② 포기 종료  가드레일 발동              (더 해봐야 소용없음)
+
+가드레일 3종:
+  · max steps     절대 상한 (안전망)
+  · no-progress   N회 연속 진전 없으면 중단  ◀ 낭비 방지 핵심
+  · budget        토큰/시간/비용 상한</div>
+<pre><code>best, stale = -1, 0
+for step in range(MAX):
+    s = score(act())
+    if s >= GOAL: break          # ① 성공
+    if s > best: best, stale = s, 0
+    else: stale += 1
+    if stale >= K: break         # ② 무진전 포기</code></pre>
+
+<h2>설계 체크리스트</h2>
+<ul>
+<li>☐ 이 작업의 <strong>객관적 검증 신호</strong>는 무엇인가? (없으면 만들 수 있나?)</li>
+<li>☐ 성공 종료 조건이 명확한가?</li>
+<li>☐ 무한루프 가드레일이 있는가? (max steps / no-progress)</li>
+<li>☐ VERIFY 결과가 다음 회차 컨텍스트로 <strong>실제로 전달</strong>되는가?</li>
+<li>☐ 검증 비용이 큰가? → 싼 검증(린트) 먼저, 비싼 검증(풀 테스트) 나중</li>
+</ul>
+
+<footer>
+<p class="nav">레슨: <a href="../lessons/0001-the-agent-loop.html">01 — 에이전트 루프</a> ·
+<a href="../lessons/0002-verification-signals.html">02 — 검증 신호</a> ·
+<a href="../lessons/0003-termination-guardrails.html">03 — 가드레일</a> ·
+<a href="../lessons/0004-real-agent-claude-cli.html">04 — 진짜 에이전트(CLI)</a> ·
+<a href="../lessons/0005-monitoring-loop.html">05 — 모니터링 루프</a> ·
+<a href="../lessons/0006-alerts-and-memory.html">06 — 알림 & 기억 ↗</a></p>
+</footer>
+</body>
+</html>

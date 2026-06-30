@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 01 — 에이전트 루프, 가장 작은 것</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<div class="kicker">Loop Engineering · Lesson 01</div>
+<h1>에이전트 루프, 가장 작은 것부터</h1>
+
+<p>당신의 목표는 <strong>직접 동작하는 에이전트를 만드는 것</strong>입니다.
+그 모든 것의 심장은 딱 한 가지 구조 — <em>루프</em> — 입니다.
+이 레슨이 끝나면 당신은 <strong>실제로 돌아가는 최소 에이전트 루프를 손으로 짜고, 왜 그게 에이전트인지 설명</strong>할 수 있게 됩니다.</p>
+
+<div class="callout">
+<div class="label">한 줄 정의</div>
+<p style="margin:.5rem 0 0">에이전트란 <strong>LLM이 도구(tool)를 루프 안에서 자율적으로 사용하는 것</strong>이다.
+프롬프트는 1번 묻고 끝나지만, 에이전트는 <em>스스로 다음 행동을 정하며 반복</em>한다.
+<span class="cite">— Anthropic, <a href="https://www.anthropic.com/research/building-effective-agents">Building Effective Agents</a></span></p>
+</div>
+
+<h2>루프의 네 박자</h2>
+<p>거의 모든 에이전트는 이 네 단계를 반복합니다. Claude Code도 내부에서 이렇게 돕니다.</p>
+
+<div class="loop-diagram">┌──────────────────────────────────────────────┐
+│  1. GATHER  지금 상태가 뭐지?   (컨텍스트 수집)  │
+│  2. ACT     한 걸음 행동한다     (도구 호출)     │
+│  3. VERIFY  진짜 됐나?           (검증 신호 확인) │ ◀── 핵심
+│  4. REPEAT  목표 달성? 아니면 1번으로            │
+└────────────────────┘ 아니면 위로 ◀────────────┘</div>
+
+<div class="callout">
+<div class="label">이번 레슨의 핵심 한 가지</div>
+<p style="margin:.5rem 0 0"><strong>VERIFY가 루프를 에이전트로 만든다.</strong>
+검증 신호(테스트 통과 여부, 컴파일 결과, API 응답)가 없으면 모델은 "다 된 것 같아요"라고
+말하고 멈출 뿐입니다. <em>객관적 검증 신호</em>가 있어야 루프가 스스로 틀린 걸 알고 다시 돕니다.</p>
+</div>
+
+<h2>직접 만들어 보기 — 15줄 루프</h2>
+<p>아래는 진짜로 돌아가는 최소 루프입니다. "비밀번호를 맞출 때까지 추측" 하는 장난감 에이전트인데,
+<strong>네 박자가 전부 들어 있습니다.</strong> API 키 없이 그대로 실행돼요. 파일로 저장하고 <code>python3 loop.py</code> 로 실행해 보세요.</p>
+
+<pre><code>def model(state):           # ← 나중에 진짜 LLM 호출로 교체할 자리
+    guess = state["last"] + 1
+    return guess
+
+def verify(guess):          # 3. VERIFY — 객관적 검증 신호
+    return guess == 7       # (현실에선: 테스트 통과? 컴파일 성공?)
+
+state = {"last": 0}
+for step in range(10):                  # 4. REPEAT (+ 무한루프 가드: 최대 10회)
+    guess = model(state)                # 1+2. GATHER 상태 → ACT 행동
+    print(f"step {step}: tried {guess}")
+    if verify(guess):                   # 3. VERIFY
+        print("✅ 목표 달성, 루프 종료")
+        break
+    state["last"] = guess               # 피드백을 다음 회차 컨텍스트로
+else:
+    print("⛔ 10회 안에 못 풂 — 가드레일 작동")</code></pre>
+
+<p>여기서 진짜 에이전트로 가는 길은 <strong>딱 두 줄을 바꾸는 것</strong>뿐입니다:
+<code>model()</code> 안을 실제 LLM 호출로, <code>verify()</code> 안을 실제 검증(예: 테스트 실행)으로.
+나머지 루프 골격은 그대로입니다.</p>
+
+<div class="callout win">
+<div class="label">당신의 차례 (Your turn)</div>
+<p style="margin:.5rem 0 0">위 코드를 실행해 보고, 다음 한 가지만 직접 바꿔 보세요:
+<strong><code>verify</code>를 <code>guess == 7</code> 대신 <code>guess >= 7</code> 으로 바꾸면 몇 회 만에 멈출까요?
+먼저 예측하고, 실행해서 맞는지 확인하세요.</strong> (예측 → 실행 = 가장 작은 학습 루프!)</p>
+</div>
+
+<h2>제대로 이해했는지 확인</h2>
+
+<div class="quiz" id="quiz" data-ok="정답! 검증이 루프의 심장입니다." data-no="다시 — 검증/가드레일 관점에서 생각해 보세요.">
+  <div class="q">Q. 단순 프롬프트와 에이전트 루프를 가르는 결정적 차이는?</div>
+  <button data-correct="false">모델 크기가 더 크다는 점</button>
+  <button data-correct="true">결과를 검증하고 다시 행동한다</button>
+  <button data-correct="false">사람이 매번 답을 붙인다</button>
+  <button data-correct="false">도구를 전혀 쓰지 않는다</button>
+  <div class="fb"></div>
+</div>
+
+<div class="quiz" id="quiz2" data-ok="정답! 가드레일이 폭주를 막습니다." data-no="다시 — 무한루프를 막는 게 뭔지 생각해 보세요.">
+  <div class="q">Q. <code>for step in range(10)</code> 의 <code>10</code>은 무슨 역할인가?</div>
+  <button data-correct="false">모델 정확도를 올린다</button>
+  <button data-correct="false">검증 신호를 만든다</button>
+  <button data-correct="true">무한루프를 막는 가드레일</button>
+  <button data-correct="false">컨텍스트를 수집한다</button>
+  <div class="fb"></div>
+</div>
+
+<hr>
+
+<h3>먼저 읽어볼 1차 출처</h3>
+<p>오늘 배운 정의의 원전입니다. 짧고 명확해요 (15분).<br>
+👉 <a href="https://www.anthropic.com/research/building-effective-agents">Anthropic — Building Effective Agents</a>
+&nbsp;·&nbsp; 루프 설명: <a href="https://www.anthropic.com/engineering/building-agents-with-the-claude-agent-sdk">Building agents with the Claude Agent SDK</a></p>
+
+<div class="callout">
+<div class="label">막히면 선생에게 물어보세요</div>
+<p style="margin:.5rem 0 0">저는 당신의 선생입니다. 코드가 안 돌거나, "내 실제 업무에 이 루프를 어떻게 붙이지?" 같은 게
+궁금하면 <strong>그냥 채팅으로 물어보세요.</strong> 다음 레슨도 당신 질문에 맞춰 만듭니다.</p>
+</div>
+
+<footer>
+<p class="nav">
+참조: <a href="../reference/agent-loop-cheatsheet.html">에이전트 루프 치트시트 ↗</a><br>
+다음 (예정): <strong>Lesson 02 — 검증 신호 설계</strong> (objective vs subjective signal)
+</p>
+</footer>
+
+<script src="../assets/quiz.js"></script>
+
+</body>
+</html>
