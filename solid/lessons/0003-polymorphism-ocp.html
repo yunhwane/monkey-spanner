@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 03 · 다형성 — 분기를 없애고 타입에게 고르게 하기</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="kicker">잘 읽히는 코드 · Lesson 03</div>
+<h1>다형성: <em>분기</em>를 없애고 타입이 스스로 고르게</h1>
+<p class="subtitle">if/else if 사슬을 지우면, SOLID의 'O'가 보인다</p>
+
+<p>
+<a href="0002-encapsulation-tell-dont-ask.html">Lesson 02</a>에서 판단을 객체 안으로 옮겼습니다.
+그런데 아직 이런 코드가 남아 있죠 — <code>if (grade == VIP) … else if (grade == GOLD) …</code>.
+다형성은 이 <strong>분기 자체를 지웁니다.</strong> "무엇을 할지 고르는 일"을 <code>if</code>가 아니라
+<strong>타입(객체)</strong>에게 맡기는 거예요.
+</p>
+
+<div class="key">
+  <span class="label">Key idea</span>
+  <strong>다형성 = 같은 메서드 호출에, 객체의 실제 타입이 스스로 다른 행동을 고르게 하는 것.</strong>
+  분기(<code>if/switch</code>)로 "어떤 종류냐"를 묻던 것을, 타입이 대신 결정합니다.
+</div>
+
+<h2>냄새: 똑같은 분기가 여기저기 복제된다</h2>
+<p>결제 수단마다 다르게 동작하는 코드입니다. <code>switch</code>(또는 if 사슬)가 <strong>메서드마다 반복</strong>됩니다.</p>
+
+<pre><code><span class="c-kw">int</span> fee(String type, <span class="c-type">int</span> amount) {
+  <span class="c-kw">if</span> (type.equals(<span class="c-str">"CARD"</span>))  <span class="c-kw">return</span> amount * <span class="c-kw">2</span> / <span class="c-kw">100</span>;
+  <span class="c-kw">if</span> (type.equals(<span class="c-str">"KAKAO"</span>)) <span class="c-kw">return</span> amount * <span class="c-kw">1</span> / <span class="c-kw">100</span>;
+  <span class="c-kw">if</span> (type.equals(<span class="c-str">"BANK"</span>))  <span class="c-kw">return</span> <span class="c-kw">0</span>;
+  <span class="c-kw">throw new</span> IllegalArgumentException();
+}
+
+String label(String type) {
+  <span class="c-kw">if</span> (type.equals(<span class="c-str">"CARD"</span>))  <span class="c-kw">return</span> <span class="c-str">"신용카드"</span>;
+  <span class="c-kw">if</span> (type.equals(<span class="c-str">"KAKAO"</span>)) <span class="c-kw">return</span> <span class="c-str">"카카오페이"</span>;
+  <span class="c-kw">if</span> (type.equals(<span class="c-str">"BANK"</span>))  <span class="c-kw">return</span> <span class="c-str">"계좌이체"</span>;
+  <span class="c-kw">throw new</span> IllegalArgumentException();
+}</code></pre>
+
+<div class="note">
+<strong>코드 냄새 이름:</strong> <em>Switch Statements</em>(같은 타입 코드로 분기하는 switch/if가 반복됨).
+결제 수단 하나(예: <code>"PAYPAL"</code>)를 추가하면 이 <strong>모든 분기</strong>를 찾아 똑같이 고쳐야 합니다.
+하나라도 빠뜨리면 버그죠. Lesson 02의 Feature Envy와 뿌리가 같습니다 — <strong>지식이 흩어졌다.</strong>
+</div>
+
+<h2>리팩토링: 타입마다 자기 행동을 갖게 하라</h2>
+<p>
+"CARD가 무엇을 하는가"를 <code>CardPayment</code>라는 <strong>타입</strong> 안에 담습니다.
+공통 약속은 <code>interface</code>로 정합니다.
+</p>
+
+<pre><code><span class="c-kw">interface</span> PaymentMethod {
+  <span class="c-type">int</span> fee(<span class="c-type">int</span> amount);
+  String label();
+}
+
+<span class="c-kw">class</span> CardPayment <span class="c-kw">implements</span> PaymentMethod {
+  <span class="c-kw">public int</span> fee(<span class="c-type">int</span> amount) { <span class="c-kw">return</span> amount * <span class="c-kw">2</span> / <span class="c-kw">100</span>; }
+  <span class="c-kw">public</span> String label() { <span class="c-kw">return</span> <span class="c-str">"신용카드"</span>; }
+}
+<span class="c-kw">class</span> KakaoPayment <span class="c-kw">implements</span> PaymentMethod {
+  <span class="c-kw">public int</span> fee(<span class="c-type">int</span> amount) { <span class="c-kw">return</span> amount * <span class="c-kw">1</span> / <span class="c-kw">100</span>; }
+  <span class="c-kw">public</span> String label() { <span class="c-kw">return</span> <span class="c-str">"카카오페이"</span>; }
+}</code></pre>
+
+<p>이제 <strong>분기가 통째로 사라집니다.</strong> 부르는 쪽은 어떤 타입인지 묻지 않고 그냥 시킵니다:</p>
+
+<div class="twoup">
+  <div class="before">
+    <div class="tag">Before — 부르는 쪽이 분기한다</div>
+<pre><code><span class="c-type">int</span> f = fee(type, amount);
+String name = label(type);</code></pre>
+  </div>
+  <div class="after">
+    <div class="tag">After — 타입이 스스로 고른다</div>
+<pre><code><span class="c-type">int</span> f = method.fee(amount);
+String name = method.label();</code></pre>
+  </div>
+</div>
+
+<p>
+<code>method.fee(amount)</code> 한 줄이 실행될 때, <strong>method의 실제 타입</strong>(CardPayment인지 KakaoPayment인지)이
+어떤 <code>fee</code>를 부를지 <strong>런타임에 스스로 결정</strong>합니다. 이걸 <em>동적 디스패치(dynamic dispatch)</em>라 하고,
+이게 다형성의 엔진입니다. "어떤 종류냐"를 우리가 <code>if</code>로 묻던 일을, 언어가 대신 해주는 거죠.
+</p>
+
+<h2>여기서 SOLID의 'O'가 태어난다 — 개방-폐쇄 원칙</h2>
+<p>이제 <code>"PAYPAL"</code>을 추가해 봅시다. 무엇을 고쳐야 할까요?</p>
+<pre><code><span class="c-cmt">// 새 파일 하나를 "추가"할 뿐, 기존 코드는 한 줄도 "수정"하지 않는다</span>
+<span class="c-kw">class</span> PaypalPayment <span class="c-kw">implements</span> PaymentMethod {
+  <span class="c-kw">public int</span> fee(<span class="c-type">int</span> amount) { <span class="c-kw">return</span> amount * <span class="c-kw">3</span> / <span class="c-kw">100</span>; }
+  <span class="c-kw">public</span> String label() { <span class="c-kw">return</span> <span class="c-str">"페이팔"</span>; }
+}</code></pre>
+
+<div class="key">
+  <span class="label">SOLID · O</span>
+  <strong>개방-폐쇄 원칙(Open–Closed Principle):</strong> 확장에는 <em>열려</em> 있고, 수정에는 <em>닫혀</em> 있어야 한다.
+  새 기능은 <strong>새 코드를 더하는 것</strong>으로 되어야지, 잘 돌던 기존 코드를 <strong>뜯어고치는 것</strong>이면 안 된다.
+</div>
+
+<p>
+switch 버전에선 결제 수단 하나 추가에 <code>fee</code>, <code>label</code>, <code>process</code>… 모든 분기를 수정해야 했습니다(닫혀 있지 않음).
+다형성 버전에선 <strong>클래스 하나를 추가</strong>하고 끝입니다. 기존 코드는 건드리지 않으니 <strong>기존 기능이 깨질 위험이 0</strong>이죠.
+<em>다형성은 OCP를 구현하는 가장 흔한 도구입니다.</em>
+</p>
+
+<div class="note">
+<strong>과용 주의:</strong> 분기가 <strong>딱 한 곳</strong>에만 있고 늘어날 일이 없다면, 굳이 클래스로 쪼개지 마세요.
+다형성은 "<strong>같은 종류의 분기가 여러 곳에 반복되거나, 종류가 계속 늘어날 때</strong>" 값을 합니다.
+반대로, 밖에서 <code>if (x instanceof CardPayment)</code>로 타입을 되묻고 있다면 — 다형성을 놓친 신호입니다.
+</div>
+
+<h2>확인해볼까요</h2>
+
+<div class="quiz" data-answer="1">
+  <p class="q">결제 수단 <code>PAYPAL</code> 추가 시, 다형성 버전이 switch 버전보다 나은 <strong>핵심</strong> 이유는?</p>
+  <button data-i="0">클래스가 인터페이스보다 실행 속도가 항상 더 빠르게 동작하기 때문에</button>
+  <button data-i="1">기존 코드를 수정하지 않고 새 클래스만 추가하면 되기 때문에</button>
+  <button data-i="2">인터페이스를 쓰면 컴파일 경고가 전부 사라지게 되기 때문에</button>
+  <p class="verdict" hidden></p>
+  <p class="explain" hidden><strong>핵심:</strong> 이게 개방-폐쇄 원칙입니다. 잘 돌던 <code>fee</code>/<code>label</code>을 안 건드리므로,
+  기존 결제 수단이 깨질 위험 없이 확장됩니다. 흩어진 switch를 다 고칠 때 생기는 "빠뜨림 버그"가 사라지죠.</p>
+</div>
+
+<div class="quiz" data-answer="2">
+  <p class="q">다음 중 "다형성을 <strong>놓친</strong>" 냄새는?</p>
+  <button data-i="0"><code>total += method.fee(amount);   // 인터페이스 호출</code></button>
+  <button data-i="1"><code>for (PaymentMethod m : methods) m.label();</code></button>
+  <button data-i="2"><code>if (m instanceof CardPayment) { ... } else if (m instanceof KakaoPayment) { ... }</code></button>
+  <p class="verdict" hidden></p>
+  <p class="explain" hidden><strong>핵심:</strong> 2번은 타입을 다시 <code>instanceof</code>로 묻고 분기합니다 — switch를 이름만 바꿔 되살린 셈이죠.
+  그 분기 안의 행동을 각 클래스의 메서드로 옮기면 <code>m.something()</code> 한 줄로 사라집니다.</p>
+</div>
+
+<h2>3분 실습 — 당신 차례</h2>
+<p>아래 알림(Notification) 코드를 다형성으로 바꿔보세요. <strong>어떤 인터페이스와 클래스들</strong>로 나눌지,
+그리고 부르는 쪽 코드가 어떻게 짧아지는지 스케치해서 저에게 보여주세요.</p>
+<pre><code><span class="c-kw">void</span> notify(String channel, User user, String msg) {
+  <span class="c-kw">if</span> (channel.equals(<span class="c-str">"EMAIL"</span>)) mail.send(user.getEmail(), msg);
+  <span class="c-kw">else if</span> (channel.equals(<span class="c-str">"SMS"</span>))  sms.send(user.getPhone(), msg);
+  <span class="c-kw">else if</span> (channel.equals(<span class="c-str">"PUSH"</span>)) push.send(user.getDeviceId(), msg);
+}</code></pre>
+<p class="note">힌트: 공통 약속은 <code>interface Notifier { void send(User user, String msg); }</code>.
+목표 느낌 → 부르는 쪽은 <code>notifier.send(user, msg);</code> 한 줄. 새 채널(예: 카카오톡)은 클래스 하나 추가로 끝나야 합니다(OCP).</p>
+
+<div class="source">
+  <span class="label">Primary source</span><br>
+  원출처: <a href="https://refactoring.guru/replace-conditional-with-polymorphism">Refactoring Guru — Replace Conditional with Polymorphism</a>
+  (분기를 타입으로 바꾸는 표준 절차). 개방-폐쇄 원칙의 Java 해설:
+  <a href="https://www.baeldung.com/solid-principles">Baeldung — SOLID (Open–Closed)</a>,
+  개념의 원출처는 <a href="https://www.oreilly.com/library/view/clean-code-a/9780136083238/">Robert C. Martin, <em>Clean Code</em></a> (다형성 vs switch).
+</div>
+
+<div class="ask">
+  <strong>막히면 선생님(저)에게 물어보세요.</strong> "인터페이스랑 추상클래스 뭘 써요?", "enum 다형성이랑은 뭐가 달라요?",
+  "제 Notifier 설계 봐주세요" — 무엇이든요. 다음 레슨은 남은 축을 채웁니다: <strong>상속 vs 조합</strong>과
+  리스코프 치환 원칙(LSP) — "상속을 <em>언제</em> 써야 하고 언제 독이 되는가".
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0002-encapsulation-tell-dont-ask.html">← Lesson 02 · 캡슐화</a></span>
+  <span><a href="0004-inheritance-composition-lsp.html">Lesson 04 · 상속 vs 조합 →</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

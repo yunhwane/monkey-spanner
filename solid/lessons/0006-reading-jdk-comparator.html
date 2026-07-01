@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 06 · 실전 오픈소스 분석 — JDK의 Comparator를 읽다</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="kicker">잘 읽히는 코드 · Lesson 06</div>
+<h1>실전 오픈소스 분석: JDK의 <code>Comparator</code>를 읽다</h1>
+<p class="subtitle">지어낸 예제는 끝. 수억 명이 쓰는 코드를 당신의 렌즈로</p>
+
+<p>
+지금까지의 예제는 제가 만든 거였습니다. 이번엔 <strong>실제 자바 표준 라이브러리</strong>를 읽습니다.
+놀라운 건 — <code>java.util.Comparator</code> 하나에 우리가 배운 렌즈가 <strong>거의 다</strong> 들어 있다는 점이에요.
+좋은 코드는 이렇게 원칙들이 자연스레 겹쳐 나타납니다. 하나씩 짚어봅시다.
+</p>
+
+<div class="key">
+  <span class="label">오늘의 목표</span>
+  실제 설계를 보고 "이 사람들은 <strong>왜</strong> 이렇게 짰을까"를 <strong>배운 용어로 스스로 해설</strong>하기.
+  이게 면접에서 "코드 볼 줄 안다"를 증명하는 능력입니다.
+</div>
+
+<h2>① 핵심은 딱 한 줄이다 — 작은 인터페이스 (ISP)</h2>
+<p>
+<code>Comparator</code>의 <strong>본질</strong>은 이 한 줄입니다 (출처: Oracle 공식 API 문서):
+</p>
+<pre><code><span class="c-cmt">@FunctionalInterface</span>
+<span class="c-kw">public interface</span> Comparator&lt;T&gt; {
+  <span class="c-type">int</span> compare(T o1, T o2);   <span class="c-cmt">// 유일한 추상 메서드</span>
+}</code></pre>
+<p>
+"두 값을 비교한다"라는 <strong>단 하나의 책임</strong>. 이게 <a href="0005-solid-srp-isp-dip.html">Lesson 05</a>의
+<strong>ISP·SRP</strong>입니다 — 인터페이스가 딱 필요한 만큼만 작죠. 그래서 <code>@FunctionalInterface</code>
+(추상 메서드 하나짜리)로 성립하고, 람다로 바로 쓸 수 있습니다:
+</p>
+<pre><code>Comparator&lt;User&gt; byAge = (a, b) -&gt; a.getAge() - b.getAge();   <span class="c-cmt">// 인터페이스 = 람다 한 줄</span></code></pre>
+
+<h2>② sort는 "비교 규칙"을 주입받는다 — DIP + OCP + 전략 패턴</h2>
+<p>이제 진짜 배울 점입니다. <code>List.sort</code>를 봅시다:</p>
+<pre><code>List&lt;User&gt; users = ...;
+users.sort(byAge);                          <span class="c-cmt">// 나이순</span>
+users.sort((a, b) -&gt; a.getName().compareTo(b.getName()));  <span class="c-cmt">// 이름순</span></code></pre>
+<p>
+<code>sort</code>의 <strong>정렬 알고리즘</strong>(TimSort)은 <strong>단 한 줄도 바뀌지 않습니다.</strong>
+그런데 정렬 <em>기준</em>은 무한히 바뀔 수 있죠. 어떻게? <strong>비교 규칙을 바깥에서 주입</strong>받기 때문입니다.
+</p>
+<ul>
+  <li><strong>DIP</strong>(<a href="0005-solid-srp-isp-dip.html">L05</a>): 고수준 정렬 알고리즘이 구체적 비교 로직이 아니라
+  <code>Comparator</code>라는 <strong>추상</strong>에만 의존합니다.</li>
+  <li><strong>OCP</strong>(<a href="0003-polymorphism-ocp.html">L03</a>): 새 정렬 기준이 필요하면 <code>Comparator</code>를 <strong>추가</strong>할 뿐,
+  <code>sort</code>를 <strong>수정</strong>하지 않습니다.</li>
+  <li><strong>다형성</strong>: <code>sort</code> 안의 <code>compare(a, b)</code> 호출이, 주입된 실제 Comparator의 행동을 런타임에 고릅니다.</li>
+</ul>
+<div class="note">
+<strong>패턴 이름:</strong> "행동(알고리즘)을 인터페이스로 뽑아 바깥에서 갈아끼우는" 이 설계를 <em>전략 패턴(Strategy Pattern)</em>이라 합니다.
+<a href="0003-polymorphism-ocp.html">Lesson 03</a>에서 <code>PaymentMethod</code>를 갈아끼운 것과 <strong>똑같은 구조</strong>예요 —
+당신은 이미 GoF 디자인 패턴 하나를 알고 있었던 겁니다.
+</div>
+
+<h2>③ 작은 비교자를 조립해 큰 비교자를 만든다 — 조합 (Composition)</h2>
+<p>
+"이름순, 같으면 나이순, 전체를 역순으로." 이걸 자바는 <strong>거대한 if</strong>가 아니라 <strong>조합</strong>으로 표현합니다:
+</p>
+<pre><code>Comparator&lt;User&gt; order =
+    Comparator.comparing(User::getName)   <span class="c-cmt">// 1차 기준</span>
+              .thenComparing(User::getAge) <span class="c-cmt">// 동점이면 2차 기준</span>
+              .reversed();                 <span class="c-cmt">// 전체 역순</span>
+users.sort(order);</code></pre>
+<p>
+<code>thenComparing</code>·<code>reversed</code>는 <strong>기존 Comparator를 받아 새 Comparator를 돌려줍니다.</strong>
+작은 부품을 <em>가져다(has-a)</em> 더 큰 걸 만드는 <a href="0004-inheritance-composition-lsp.html">Lesson 04의 조합</a>이죠.
+공식 소스에서 <code>thenComparing</code>의 <strong>본질</strong>은 이렇습니다 (Oracle 문서 기준, 요지):
+</p>
+<pre><code><span class="c-kw">default</span> Comparator&lt;T&gt; thenComparing(Comparator&lt;? <span class="c-kw">super</span> T&gt; other) {
+  <span class="c-kw">return</span> (a, b) -&gt; {
+    <span class="c-type">int</span> res = <span class="c-kw">this</span>.compare(a, b);        <span class="c-cmt">// 나를 먼저 써 보고</span>
+    <span class="c-kw">return</span> (res != <span class="c-kw">0</span>) ? res : other.compare(a, b);  <span class="c-cmt">// 동점이면 other에게 위임</span>
+  };
+}</code></pre>
+<p>
+문서의 표현 그대로: <em>"이 Comparator가 두 원소를 같다고 보면(<code>compare(a,b)==0</code>), <code>other</code>가 순서를 정한다."</em>
+상속(<code>extends</code>)은 한 군데도 없이, <strong>조합만으로</strong> 무한한 정렬 규칙을 만들어냅니다. 이게 <em>Effective Java</em>가
+"상속보다 조합"이라 한 이유의 살아있는 증거예요.
+</p>
+
+<h2>④ 반례로 배우기: <code>Stack</code>은 왜 실패작인가 (상속·LSP)</h2>
+<p>
+같은 <code>java.util</code>인데 정반대인 코드가 있습니다. <a href="0004-inheritance-composition-lsp.html">Lesson 04</a>에서 예고한 그것 —
+공식 문서가 <strong>스스로 인정한 설계 실수</strong>입니다. Oracle 문서 원문:
+</p>
+<pre><code><span class="c-kw">public class</span> Stack&lt;E&gt; <span class="c-kw">extends</span> Vector&lt;E&gt;   <span class="c-cmt">// 재사용하려고 Vector를 상속</span></code></pre>
+<div class="note">
+<strong>공식 문서의 권고 (원문 인용):</strong> <em>"A more complete and consistent set of LIFO stack operations is
+provided by the <code>Deque</code> interface and its implementations, which should be used in preference to this class.
+For example: <code>Deque&lt;Integer&gt; stack = new ArrayDeque&lt;Integer&gt;();</code>"</em><br>
+→ "새 코드는 <code>Stack</code> 대신 <code>Deque</code>/<code>ArrayDeque</code>를 써라." 표준 라이브러리가 자기 클래스를 말리는 겁니다.
+</div>
+<p>
+이유는 우리가 이미 압니다: <code>Stack extends Vector</code>라서 <code>stack.add(0, x)</code>(맨 아래 삽입),
+<code>stack.remove(1)</code>(중간 제거) 같은 <strong>스택이 아닌 연산이 다 노출</strong>됩니다. "스택은 맨 위로만"이라는
+약속이 깨지죠 — <strong>잘못된 상속 → 캡슐화·LSP 붕괴</strong>. <code>Comparator</code>(조합)와 <code>Stack</code>(상속)을 나란히 놓으면,
+우리가 배운 원칙이 <strong>왜</strong> 옳은지가 실물로 증명됩니다.
+</p>
+
+<h2>확인해볼까요</h2>
+
+<div class="quiz" data-answer="1">
+  <p class="q"><code>users.sort(comparator)</code>에서, 새 정렬 기준을 추가해도 sort 알고리즘 코드가 안 바뀌는 것은 어떤 원칙인가?</p>
+  <button data-i="0">리스코프 치환 원칙 — 자식이 부모를 문제없이 대체하기 때문에</button>
+  <button data-i="1">개방-폐쇄 원칙 — 확장은 열려 있고 수정은 닫혀 있기 때문에</button>
+  <button data-i="2">단일 책임 원칙 — 클래스가 오직 하나의 필드만 가지기 때문에</button>
+  <p class="verdict" hidden></p>
+  <p class="explain" hidden><strong>핵심:</strong> 정렬 기준(Comparator)을 <em>추가</em>할 뿐 sort를 <em>수정</em>하지 않으니 OCP.
+  그리고 규칙을 추상으로 주입받으니 DIP가 짝을 이루죠. 이 조합이 "전략 패턴"입니다.</p>
+</div>
+
+<div class="quiz" data-answer="2">
+  <p class="q"><code>comparing(...).thenComparing(...).reversed()</code>가 보여주는 설계 원리는?</p>
+  <button data-i="0">상속으로 부모 Comparator의 compare 메서드를 재정의해 확장한다</button>
+  <button data-i="1">거대한 if/switch로 모든 정렬 경우의 수를 한 곳에 나열한다</button>
+  <button data-i="2">작은 Comparator를 가져다 더 큰 Comparator를 만드는 조합이다</button>
+  <p class="verdict" hidden></p>
+  <p class="explain" hidden><strong>핵심:</strong> 각 메서드는 기존 Comparator를 받아 새 것을 반환합니다(has-a 조합).
+  상속도, 분기 나열도 아니죠. "상속보다 조합"이 실제 API에서 어떻게 빛나는지의 표본입니다.</p>
+</div>
+
+<h2>5분 실습 — 당신 차례 (실전 리딩)</h2>
+<p>
+아래는 실제로 자주 보는 코드입니다. <strong>이 한 줄에 우리가 배운 원칙/개념이 몇 개나 겹쳐 있는지</strong>
+찾아서, 각각을 이름 붙여 저에게 설명해 주세요. (힌트: 최소 3개는 보입니다.)
+</p>
+<pre><code>employees.sort(
+    Comparator.comparing(Employee::getDept)
+              .thenComparing(Employee::getSalary, Comparator.reverseOrder())
+);</code></pre>
+<p class="note">생각해볼 질문: (1) <code>sort</code>는 정렬 규칙을 어떻게 아나요? (2) <code>getSalary</code> 규칙과 <code>getDept</code> 규칙이
+어떻게 하나로 합쳐지나요? (3) 부서별 정렬을 "이름별"로 바꾸려면 <code>sort</code> 내부를 고쳐야 하나요? — 각 답에 원칙 이름을 붙여보세요.</p>
+
+<div class="source">
+  <span class="label">Primary source</span><br>
+  실제 원본: <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html">Oracle — <code>java.util.Comparator</code> API</a>
+  ·&nbsp;<a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Stack.html">Oracle — <code>java.util.Stack</code> (Deque 권고)</a>.
+  설계 판단의 근거: <a href="https://www.oreilly.com/library/view/effective-java/9780134686097/">Bloch, <em>Effective Java</em> — Item 18</a>.
+  더 읽을거리(전략 패턴): <a href="https://refactoring.guru/design-patterns/strategy">Refactoring Guru — Strategy</a>.
+</div>
+
+<div class="ask">
+  <strong>막히면 선생님(저)에게 물어보세요.</strong> "다른 오픈소스도 이렇게 읽고 싶어요", "전략 패턴 더 알려주세요",
+  "제 실습 분석 봐주세요" — 무엇이든요. 다음부터는 <strong>디자인 패턴</strong>(전략·팩토리·데코레이터)을
+  "SOLID를 상황별로 굳힌 레시피"로 배우거나, 원하시는 <strong>실제 오픈소스</strong>(Spring 등)를 함께 읽을 수 있어요.
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0005-solid-srp-isp-dip.html">← Lesson 05 · SOLID 완성</a></span>
+  <span>Lesson 07 · 디자인 패턴 (예정)</span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

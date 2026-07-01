@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 05 · SOLID 완성 — S·I·D를 이미 배운 것으로 꿰기</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="kicker">잘 읽히는 코드 · Lesson 05</div>
+<h1>SOLID 완성: S · I · D를 <em>이미 배운 것</em>으로 꿰기</h1>
+<p class="subtitle">새 법칙 3개가 아니라, 추상·캡슐화·조합의 다른 이름</p>
+
+<p>
+SOLID의 <strong>O</strong>(<a href="0003-polymorphism-ocp.html">L03</a>)와 <strong>L</strong>(<a href="0004-inheritance-composition-lsp.html">L04</a>)은
+이미 채웠습니다. 남은 <strong>S·I·D</strong>는 외울 새 규칙이 아니라, 지금까지 배운 걸 <em>다른 각도</em>에서 부르는 이름입니다.
+공통 목표는 하나 — <strong>"변화가 한 곳에만 닿게, 나머지를 추상 뒤에 두라."</strong> 그게 SOLID 전체의 정신입니다.
+</p>
+
+<div class="key">
+  <span class="label">한 줄 요약</span>
+  <strong>S</strong> = 클래스는 바뀌는 이유가 하나 &nbsp;·&nbsp;
+  <strong>I</strong> = 안 쓰는 메서드에 의존하지 마라 &nbsp;·&nbsp;
+  <strong>D</strong> = 구체가 아니라 추상에 의존하라.
+</div>
+
+<h2>S — 단일 책임 원칙 (Single Responsibility)</h2>
+<p>
+<a href="0001-abstraction-one-level.html">Lesson 01</a>의 "한 함수는 한 수준"을 <strong>클래스 레벨</strong>로 올린 것입니다.
+"한 클래스는 <strong>바뀌는 이유가 하나</strong>여야 한다." 아래 클래스가 바뀔 이유를 세어봅시다.
+</p>
+
+<div class="twoup">
+  <div class="before">
+    <div class="tag">Before — 바뀔 이유가 셋</div>
+<pre><code><span class="c-kw">class</span> UserService {
+  <span class="c-kw">void</span> register(Form f) {
+    validate(f);          <span class="c-cmt">// ① 검증 규칙</span>
+    db.save(toUser(f));   <span class="c-cmt">// ② DB 스키마</span>
+    mail.send(...);       <span class="c-cmt">// ③ 메일 형식</span>
+  }
+}</code></pre>
+  </div>
+  <div class="after">
+    <div class="tag">After — 각자 이유 하나씩</div>
+<pre><code><span class="c-kw">class</span> SignupValidator { ... }  <span class="c-cmt">// ①만</span>
+<span class="c-kw">class</span> UserRepository { ... }    <span class="c-cmt">// ②만</span>
+<span class="c-kw">class</span> WelcomeMailer { ... }     <span class="c-cmt">// ③만</span>
+
+<span class="c-kw">class</span> UserService {           <span class="c-cmt">// 조립만</span>
+  ... register() { v...; r...; m...; }
+}</code></pre>
+  </div>
+</div>
+<p>
+검증 규칙이 바뀌어도 DB 코드는 안 건드립니다. 각 클래스가 <strong>한 가지 이유로만</strong> 바뀌니까요.
+"책임"은 <em>기능의 개수</em>가 아니라 <strong>"바뀌는 이유(변경의 축)"</strong>로 세는 게 핵심입니다.
+</p>
+
+<h2>I — 인터페이스 분리 원칙 (Interface Segregation)</h2>
+<p>
+<a href="0004-inheritance-composition-lsp.html">Lesson 04</a>에서 <code>Stack</code>이 리스트의 모든 메서드에 노출돼 곤란했죠.
+그 문제의 인터페이스 버전입니다. "<strong>쓰지도 않는 메서드에 의존하지 마라.</strong> 큰 인터페이스 하나보다 작은 것 여럿."
+</p>
+
+<div class="twoup">
+  <div class="before">
+    <div class="tag">Before — 뚱뚱한 인터페이스</div>
+<pre><code><span class="c-kw">interface</span> Machine {
+  <span class="c-kw">void</span> print();
+  <span class="c-kw">void</span> scan();
+  <span class="c-kw">void</span> fax();
+}
+<span class="c-cmt">// 단순 프린터도 scan/fax를</span>
+<span class="c-cmt">// 억지로 구현해야 함(빈 메서드…)</span>
+<span class="c-kw">class</span> SimplePrinter
+      <span class="c-kw">implements</span> Machine { ... }</code></pre>
+  </div>
+  <div class="after">
+    <div class="tag">After — 잘게 나눈 인터페이스</div>
+<pre><code><span class="c-kw">interface</span> Printer { <span class="c-kw">void</span> print(); }
+<span class="c-kw">interface</span> Scanner { <span class="c-kw">void</span> scan(); }
+<span class="c-kw">interface</span> Fax     { <span class="c-kw">void</span> fax(); }
+
+<span class="c-kw">class</span> SimplePrinter
+      <span class="c-kw">implements</span> Printer { ... }
+<span class="c-kw">class</span> AllInOne
+  <span class="c-kw">implements</span> Printer, Scanner, Fax { ... }</code></pre>
+  </div>
+</div>
+<p>
+필요한 능력만 골라 구현합니다. 빈 <code>fax(){}</code> 같은 <strong>거짓 구현</strong>이 사라지고, 각 클라이언트는
+자기가 쓰는 계약에만 묶입니다. Lesson 04의 "노출을 최소화하라"와 같은 정신 — 이번엔 <strong>계약(인터페이스)</strong>에 적용한 거죠.
+</p>
+
+<h2>D — 의존성 역전 원칙 (Dependency Inversion)</h2>
+<p>
+<a href="0004-inheritance-composition-lsp.html">Lesson 04</a>에서 <code>EmailClient</code>를 <strong>주입</strong>받았던 그 조합 —
+사실 그게 D의 씨앗이었습니다. "<strong>고수준(정책)이 저수준(세부)에 의존하지 말고, 둘 다 추상에 의존하라.</strong>"
+</p>
+
+<div class="twoup">
+  <div class="before">
+    <div class="tag">Before — 구체에 직접 의존</div>
+<pre><code><span class="c-kw">class</span> NotificationService {
+  <span class="c-cmt">// EmailClient에 못박힘</span>
+  <span class="c-kw">private final</span> EmailClient email
+      = <span class="c-kw">new</span> EmailClient();
+  <span class="c-kw">void</span> notify(User u, String m) {
+    email.send(u.getEmail(), m);
+  }
+}
+<span class="c-cmt">// SMS로 바꾸려면 이 클래스를 수정</span></code></pre>
+  </div>
+  <div class="after">
+    <div class="tag">After — 추상에 의존 + 주입</div>
+<pre><code><span class="c-kw">interface</span> Notifier {         <span class="c-cmt">// 추상</span>
+  <span class="c-kw">void</span> send(User u, String m);
+}
+<span class="c-kw">class</span> NotificationService {
+  <span class="c-kw">private final</span> Notifier notifier;
+  NotificationService(Notifier n) {  <span class="c-cmt">// 주입</span>
+    <span class="c-kw">this</span>.notifier = n;
+  }
+  <span class="c-kw">void</span> notify(User u, String m) {
+    notifier.send(u, m);
+  }
+}</code></pre>
+  </div>
+</div>
+<p>
+이제 <code>NotificationService</code>(고수준 정책)는 <code>EmailNotifier</code>인지 <code>SmsNotifier</code>인지 <strong>모릅니다</strong>.
+둘 다 <code>Notifier</code>라는 추상만 바라보죠. 이게 <a href="0003-polymorphism-ocp.html">L03의 OCP</a>와 손잡습니다 —
+새 알림 수단을 <strong>추가</strong>해도 서비스는 안 바뀝니다. <strong>"역전"</strong>이란, 원래 서비스→이메일로 향하던
+의존의 화살표를, 이메일→인터페이스←서비스 로 <strong>뒤집어</strong> 세부가 추상을 향하게 만든 것.
+</p>
+
+<div class="key">
+  <span class="label">전체를 하나로</span>
+  SOLID 다섯 글자는 결국 <strong>"변경이 번지지 않도록, 추상 뒤에서 의존을 관리하라"</strong>는 한 생각의 다섯 얼굴입니다.
+  S로 이유를 나누고, O·L·I·D로 그 경계를 추상으로 안전하게 잇는 거죠.
+</div>
+
+<h2>확인해볼까요</h2>
+
+<div class="quiz" data-answer="2">
+  <p class="q">단일 책임 원칙에서 "책임이 하나"라는 말을 가장 정확히 옮긴 것은?</p>
+  <button data-i="0">클래스가 오직 하나의 public 메서드만 가지고 있어야 한다는 뜻</button>
+  <button data-i="1">클래스가 필드를 하나만 선언해 상태를 최소로 유지한다는 뜻</button>
+  <button data-i="2">클래스가 바뀌어야 하는 이유(변경의 축)가 하나뿐이라는 뜻</button>
+  <p class="verdict" hidden></p>
+  <p class="explain" hidden><strong>핵심:</strong> SRP의 "책임"은 메서드/필드 개수가 아니라 <em>바뀌는 이유</em>입니다.
+  검증·DB·메일은 각기 다른 이유로 바뀌므로 서로 다른 책임 → 다른 클래스로.</p>
+</div>
+
+<div class="quiz" data-answer="0">
+  <p class="q"><code>NotificationService</code>가 <code>Notifier</code> 인터페이스에 의존하게 만든 이득은? (DIP)</p>
+  <button data-i="0">알림 수단을 추가·교체해도 서비스 코드를 수정하지 않아도 되는 것</button>
+  <button data-i="1">인터페이스를 쓰면 객체 생성 비용이 사라져 메모리를 절약하는 것</button>
+  <button data-i="2">구체 클래스보다 인터페이스가 언제나 실행 속도가 빠른 것</button>
+  <p class="verdict" hidden></p>
+  <p class="explain" hidden><strong>핵심:</strong> 고수준 정책이 추상에만 의존하니, 저수준 세부(Email/SMS)를 갈아끼워도 정책은 그대로입니다.
+  DIP는 OCP와 짝을 이뤄 "확장에 열리고 수정에 닫힌" 구조를 만듭니다.</p>
+</div>
+
+<h2>4분 실습 — 당신 차례</h2>
+<p>아래 <code>OrderService</code>는 SOLID를 여러 개 어깁니다. <strong>어떤 글자를 어기고 있는지</strong> 짚고,
+어떻게 나눌지(어떤 클래스/인터페이스로) 스케치해 저에게 보여주세요.</p>
+<pre><code><span class="c-kw">class</span> OrderService {
+  <span class="c-kw">private</span> MySqlDatabase db = <span class="c-kw">new</span> MySqlDatabase();  <span class="c-cmt">// 구체 클래스에 직접 의존</span>
+  <span class="c-kw">void</span> placeOrder(Order o) {
+    <span class="c-kw">if</span> (o.getItems().isEmpty()) <span class="c-kw">throw new</span> InvalidOrder();  <span class="c-cmt">// 검증</span>
+    db.save(o);                                          <span class="c-cmt">// 저장</span>
+    String csv = o.getId() + <span class="c-str">","</span> + o.getTotal();          <span class="c-cmt">// 리포트 포맷</span>
+    reportFile.append(csv);                              <span class="c-cmt">// 파일 쓰기</span>
+    mail.send(o.getBuyerEmail(), <span class="c-str">"주문 완료"</span>);             <span class="c-cmt">// 메일</span>
+  }
+}</code></pre>
+<p class="note">힌트: 바뀌는 이유가 몇 개인가요?(검증/저장/리포트/메일 → <strong>S</strong>) 그리고 <code>new MySqlDatabase()</code>처럼
+구체에 못박힌 곳은?(→ <strong>D</strong>: <code>OrderRepository</code> 인터페이스로 추상화 후 주입)</p>
+
+<div class="source">
+  <span class="label">Primary source</span><br>
+  원출처: <a href="https://www.baeldung.com/solid-principles">Baeldung — A Solid Guide to SOLID Principles</a>
+  (다섯 원칙을 Java 코드로 하나씩). 개념의 뿌리는 <a href="https://www.oreilly.com/library/view/clean-architecture/9780134494272/">Robert C. Martin, <em>Clean Architecture</em></a>
+  (SOLID와 의존성 방향), 빠른 복습은 <a href="https://gist.github.com/wojteklu/73c6914cc446146b8b533c0988cf8d29">Clean Code 요약</a>.
+</div>
+
+<div class="ask">
+  <strong>막히면 선생님(저)에게 물어보세요.</strong> "SRP에서 책임을 어디까지 쪼개요?", "DIP랑 DI(의존성 주입) 차이는요?",
+  "제 OrderService 리팩토링 봐주세요" — 무엇이든요. 다음 레슨은 드디어 <strong>실제 오픈소스 코드 분석</strong>입니다:
+  지금 배운 렌즈(캡슐화·다형성·조합·SOLID)로 <code>java.util</code>·<code>Comparator</code> 같은 실전 설계를 읽어냅니다.
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0004-inheritance-composition-lsp.html">← Lesson 04 · 상속 vs 조합</a></span>
+  <span><a href="0006-reading-jdk-comparator.html">Lesson 06 · 오픈소스 분석 →</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

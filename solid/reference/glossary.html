@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reference · 용어집 (Glossary)</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+  dt { font-weight: 600; margin-top: 1.2rem; }
+  dt .en { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); font-weight: 400; }
+  dd { margin: 0.2rem 0 0; color: #333; }
+  dd .from { font-size: 0.85rem; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="kicker">잘 읽히는 코드 · Reference</div>
+<h1>용어집 (Glossary)</h1>
+<p class="subtitle">이 코스의 약속된 어휘. 모든 레슨은 여기 정의를 따릅니다. 새 개념을 배울 때마다 갱신됩니다.</p>
+
+<dl>
+  <dt>추상 <span class="en">abstraction</span></dt>
+  <dd>본질(무엇을 하는가, <em>what</em>)만 남기고 세부(어떻게 하는가, <em>how</em>)는 이름 뒤로 감추는 것.
+  클린코드·객체지향의 뿌리 개념. <span class="from">Lesson 01</span></dd>
+
+  <dt>추상화 수준 <span class="en">level of abstraction</span></dt>
+  <dd>코드가 이야기하는 "고도". "결제한다"는 높은 수준, "가격×수량을 더한다"는 낮은 수준.
+  한 함수 안의 문장들은 같은 수준에 있어야 읽힌다. <span class="from">Lesson 01</span></dd>
+
+  <dt>한 함수 한 수준 원칙 <span class="en">One Level of Abstraction per Function</span></dt>
+  <dd>함수 본문의 모든 문장이 함수 이름이 약속한 것과 같은 추상화 수준에 있어야 한다는 원칙.
+  <span class="from">Clean Code Ch.3 · Lesson 01</span></dd>
+
+  <dt>메서드 추출 <span class="en">Extract Method</span></dt>
+  <dd>코드 덩어리를 의도를 드러내는 이름의 메서드로 뽑아내, 세부를 그 이름 뒤로 감추는 리팩토링 기법.
+  <span class="from">Refactoring Guru · Lesson 01</span></dd>
+
+  <dt>코드 냄새 <span class="en">code smell</span></dt>
+  <dd>버그는 아니지만 "무언가 잘못됐다"는 신호를 주는 코드의 패턴. 이름을 붙일 수 있으면 고칠 수 있다.
+  예: Long Method(긴 메서드). <span class="from">Refactoring Guru · Lesson 01</span></dd>
+
+  <dt>리팩토링 <span class="en">refactoring</span></dt>
+  <dd>겉으로 드러나는 동작은 그대로 두고, 내부 구조를 더 읽기 좋게 바꾸는 것.
+  <span class="from">Lesson 01</span></dd>
+
+  <dt>캡슐화 <span class="en">encapsulation</span></dt>
+  <dd>데이터와 그 데이터를 다루는 로직을 한 객체 안에 묶고, 바깥에는 <em>행동</em>만 노출하는 것.
+  추상을 객체 수준으로 확장한 것. <span class="from">Lesson 02</span></dd>
+
+  <dt>묻지 말고 시켜라 <span class="en">Tell, Don't Ask</span></dt>
+  <dd>객체의 속을 꺼내(ask) 바깥에서 판단하지 말고, 하고 싶은 일을 객체에게 시켜라(tell).
+  판단 로직을 데이터가 있는 곳에 둔다. <span class="from">Martin Fowler · Lesson 02</span></dd>
+
+  <dt>기능 편애 <span class="en">Feature Envy</span></dt>
+  <dd>어떤 코드가 자기 것보다 남(다른 객체)의 데이터를 더 많이 주무르는 냄새.
+  그 로직을 데이터가 있는 객체로 옮기라는 신호. <span class="from">Refactoring Guru · Lesson 02</span></dd>
+
+  <dt>불변식 <span class="en">invariant</span></dt>
+  <dd>객체가 항상 지켜야 하는 규칙(예: 잔액은 음수가 될 수 없다). 캡슐화로 바깥이 이를 깨지 못하게 지킨다.
+  <span class="from">Lesson 02</span></dd>
+
+  <dt>빈약한 도메인 모델 <span class="en">anemic domain model</span></dt>
+  <dd>필드마다 getter/setter만 잔뜩 있고 행동은 없는 객체. private 이름표만 붙었을 뿐 캡슐화가 아니다.
+  <span class="from">Lesson 02</span></dd>
+
+  <dt>다형성 <span class="en">polymorphism</span></dt>
+  <dd>같은 메서드 호출에, 객체의 실제 타입이 스스로 다른 행동을 고르게 하는 것.
+  <code>if/switch</code> 분기를 타입에게 넘긴다. <span class="from">Lesson 03</span></dd>
+
+  <dt>동적 디스패치 <span class="en">dynamic dispatch</span></dt>
+  <dd><code>x.method()</code> 호출 시, x의 <em>런타임 실제 타입</em>에 맞는 메서드가 선택되는 것. 다형성의 엔진.
+  <span class="from">Lesson 03</span></dd>
+
+  <dt>조건문을 다형성으로 바꾸기 <span class="en">Replace Conditional with Polymorphism</span></dt>
+  <dd>타입 코드로 분기하는 switch/if 사슬을, 각 타입이 자기 행동을 갖는 클래스들로 바꾸는 리팩토링.
+  <span class="from">Refactoring Guru · Lesson 03</span></dd>
+
+  <dt>개방-폐쇄 원칙 <span class="en">Open–Closed Principle (SOLID · O)</span></dt>
+  <dd>확장에는 열려, 수정에는 닫혀 있어야 한다. 새 기능은 새 코드 추가로 되어야지 기존 코드 수정이면 안 된다.
+  다형성이 이를 구현하는 대표 도구. <span class="from">Lesson 03</span></dd>
+
+  <dt>상속 <span class="en">inheritance</span></dt>
+  <dd>부모의 특성을 자식이 물려받는 것. "is-a(∼는 ∼의 일종)" 관계를 표현하는 도구이지, 코드 재사용 수단이 아니다.
+  <span class="from">Lesson 04</span></dd>
+
+  <dt>조합 <span class="en">composition</span></dt>
+  <dd>다른 객체를 필드로 <em>가지고</em>(has-a) 필요한 것만 골라 쓰는 것. 재사용이 목적이면 상속보다 조합.
+  <span class="from">Effective Java · Lesson 04</span></dd>
+
+  <dt>is-a / has-a 테스트 <span class="en">is-a / has-a</span></dt>
+  <dd>"A는 B의 일종인가(is-a → 상속 후보)" vs "A는 B를 가지는가/사용하는가(has-a → 조합)". 상속·조합 판별 기준.
+  <span class="from">Lesson 04</span></dd>
+
+  <dt>리스코프 치환 원칙 <span class="en">Liskov Substitution Principle (SOLID · L)</span></dt>
+  <dd>부모 타입을 쓰는 코드에 자식을 넣어도 기대(약속)가 깨지지 않아야 한다. 깨지면 진짜 is-a가 아니다.
+  <span class="from">Lesson 04</span></dd>
+
+  <dt>단일 책임 원칙 <span class="en">Single Responsibility Principle (SOLID · S)</span></dt>
+  <dd>한 클래스는 바뀌어야 하는 이유가 하나여야 한다. "책임"은 기능 개수가 아니라 <em>변경의 축</em>으로 센다.
+  L01 "한 함수 한 수준"의 클래스 버전. <span class="from">Lesson 05</span></dd>
+
+  <dt>인터페이스 분리 원칙 <span class="en">Interface Segregation Principle (SOLID · I)</span></dt>
+  <dd>쓰지 않는 메서드에 의존하게 만들지 마라. 뚱뚱한 인터페이스 하나보다 작은 인터페이스 여럿.
+  <span class="from">Lesson 05</span></dd>
+
+  <dt>의존성 역전 원칙 <span class="en">Dependency Inversion Principle (SOLID · D)</span></dt>
+  <dd>고수준(정책)이 저수준(세부)에 의존하지 말고, 둘 다 추상에 의존하라. 구체가 아니라 인터페이스에 의존 + 주입.
+  <span class="from">Lesson 05</span></dd>
+
+  <dt>의존성 주입 <span class="en">Dependency Injection (DI)</span></dt>
+  <dd>객체가 필요한 협력자를 스스로 <code>new</code> 하지 않고 밖에서(생성자 등) 받는 기법. DIP를 실현하는 대표 수단.
+  <span class="from">Lesson 05</span></dd>
+
+  <dt>함수형 인터페이스 <span class="en">functional interface</span></dt>
+  <dd>추상 메서드가 딱 하나인 인터페이스(<code>@FunctionalInterface</code>). 람다로 바로 구현 가능.
+  예: <code>Comparator</code>의 <code>compare</code>. <span class="from">Lesson 06</span></dd>
+
+  <dt>전략 패턴 <span class="en">Strategy Pattern</span></dt>
+  <dd>바뀌는 행동(알고리즘)을 인터페이스로 뽑아, 바깥에서 갈아끼우도록 주입하는 설계.
+  다형성+OCP+DIP의 결합. 예: <code>List.sort(Comparator)</code>. <span class="from">Lesson 06</span></dd>
+</dl>
+
+<div class="lesson-nav">
+  <span>Reference · 용어집</span>
+  <span>갱신: Lesson 01</span>
+</div>
+</body>
+</html>

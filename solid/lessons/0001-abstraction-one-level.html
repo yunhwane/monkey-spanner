@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 01 · 추상 — 코드가 "읽히게" 만드는 첫 번째 힘</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="kicker">잘 읽히는 코드 · Lesson 01</div>
+<h1>추상(抽象): 코드가 "읽히게" 만드는 첫 번째 힘</h1>
+<p class="subtitle">"와, 이 사람 코드 잘 짠다"의 정체를, 함수 하나로 체감하기</p>
+
+<p>
+우리가 "코드를 잘 짠다"고 느낄 때, 사실은 <strong>"잘 읽힌다"</strong>고 느끼는 겁니다.
+그리고 코드가 잘 읽히는지 아닌지를 결정하는 가장 밑바닥 개념이 바로 <strong>추상(abstraction)</strong>입니다.
+클린코드도, 객체지향도, SOLID도 전부 이 한 뿌리에서 자랍니다. 이번 레슨에서 그 뿌리를 손으로 만져봅니다.
+</p>
+
+<div class="key">
+  <span class="label">Key idea</span>
+  <strong>추상이란 "무엇을 하는가(what)"만 남기고, "어떻게 하는가(how)"는 이름 뒤로 감추는 것.</strong>
+  좋은 함수 이름은 본문을 안 봐도 이해되고, 궁금할 때만 안으로 내려가 보게 만듭니다.
+</div>
+
+<h2>당신은 이미 매일 추상을 쓴다</h2>
+<p>
+"커피 한 잔 타 줘"라고 말할 때, 우리는 <em>물을 끓이고, 원두를 갈고, 드리퍼에 붓고…</em>를
+일일이 말하지 않습니다. "커피를 탄다"는 <strong>이름 하나</strong>가 그 모든 세부를 감춰줍니다.
+듣는 사람은 세부를 몰라도 뭘 하려는지 압니다. 이게 추상입니다.
+코드도 똑같아야 합니다 — 읽는 사람이 <strong>한 번에 한 수준</strong>만 생각하게.
+</p>
+
+<h2>냄새나는 코드: 모든 수준이 뒤섞여 있다</h2>
+<p>주문을 결제하는 Java 메서드입니다. 한 번 읽어 내려가 보세요. 몇 초 만에 "무슨 일을 하는지" 파악되나요?</p>
+
+<pre><code><span class="c-kw">void</span> checkout(Cart cart, User user) {
+  <span class="c-cmt">// 합계 계산</span>
+  <span class="c-type">int</span> total = <span class="c-kw">0</span>;
+  <span class="c-kw">for</span> (Item i : cart.getItems()) {
+    total += i.getPrice() * i.getQty();
+  }
+  <span class="c-cmt">// 회원 등급 할인</span>
+  <span class="c-kw">if</span> (user.getGrade().equals(<span class="c-str">"VIP"</span>)) total = total * <span class="c-kw">90</span> / <span class="c-kw">100</span>;
+  <span class="c-cmt">// 카드 결제 호출</span>
+  PgResponse res = pg.request(user.getCardNo(), total, <span class="c-str">"KRW"</span>);
+  <span class="c-kw">if</span> (!res.getCode().equals(<span class="c-str">"0000"</span>)) <span class="c-kw">throw new</span> PayException();
+  <span class="c-cmt">// 영수증 문자열 조립 후 발송</span>
+  String body = <span class="c-str">"결제금액: "</span> + total + <span class="c-str">"원"</span>;
+  mail.send(user.getEmail(), <span class="c-str">"영수증"</span>, body);
+}</code></pre>
+
+<p>
+읽기 힘든 이유는 <em>어렵기 때문</em>이 아닙니다. <strong>수준이 뒤섞였기 때문</strong>입니다.
+"결제한다"라는 <strong>높은 수준</strong>의 이야기 사이에, <code>total += i.getPrice() * i.getQty()</code>
+같은 <strong>낮은 수준</strong>의 계산 디테일이 끼어 있습니다. 읽는 사람의 머리는 매 줄마다
+고도를 오르내려야 합니다. 그게 피로의 정체입니다.
+</p>
+
+<div class="note">
+<strong>코드 냄새 이름:</strong> 이건 <em>Long Method</em>(긴 메서드)이자, Uncle Bob이 말한
+<em>"한 함수 안에 여러 추상화 수준이 섞임"</em>의 전형입니다. 이름을 붙일 수 있다는 건, 고칠 수 있다는 뜻입니다.
+</div>
+
+<h2>리팩토링: 세부를 이름 뒤로 감추기 (Extract Method)</h2>
+<p>
+각 "낮은 수준" 덩어리를 <strong>의도를 드러내는 이름</strong>의 메서드로 뽑아냅니다.
+그러면 <code>checkout</code>은 세부가 사라지고 <em>이야기의 줄거리</em>만 남습니다.
+</p>
+
+<div class="twoup">
+  <div class="after">
+    <div class="tag">After — 줄거리만 남은 checkout</div>
+<pre><code><span class="c-kw">void</span> checkout(Cart cart, User user) {
+  <span class="c-type">int</span> total = totalPrice(cart);
+  total = applyGradeDiscount(total, user);
+  pay(user, total);
+  sendReceipt(user, total);
+}</code></pre>
+  </div>
+  <div class="after">
+    <div class="tag">감춰진 세부 (궁금할 때만 열어본다)</div>
+<pre><code><span class="c-kw">private int</span> totalPrice(Cart cart) {
+  <span class="c-type">int</span> total = <span class="c-kw">0</span>;
+  <span class="c-kw">for</span> (Item i : cart.getItems())
+    total += i.getPrice() * i.getQty();
+  <span class="c-kw">return</span> total;
+}
+
+<span class="c-kw">private boolean</span> isVip(User u) {
+  <span class="c-kw">return</span> u.getGrade().equals(<span class="c-str">"VIP"</span>);
+}</code></pre>
+  </div>
+</div>
+
+<p>
+이제 <code>checkout</code>은 <strong>네 줄의 한글 문장처럼</strong> 읽힙니다: 합계를 구하고 → 등급 할인을 적용하고 →
+결제하고 → 영수증을 보낸다. 모든 줄이 <strong>같은 높이</strong>에 있습니다. 세부가 궁금하면
+그때 <code>totalPrice</code> 안으로 <em>한 층 내려가면</em> 됩니다. 이것이 바로—
+</p>
+
+<div class="key">
+  <span class="label">원칙</span>
+  <strong>한 함수는 한 수준의 추상화만 담는다</strong> (One Level of Abstraction per Function).
+  함수 본문의 모든 문장이 이름이 약속한 것과 같은 고도에 있어야 합니다.
+</div>
+
+<h2>확인해볼까요</h2>
+
+<div class="quiz" data-answer="1">
+  <p class="q">리팩토링한 <code>checkout</code>에 아래 한 줄을 그대로 넣으면 왜 어색할까요?<br>
+  <code>total += item.getPrice() * item.getQty();</code></p>
+  <button data-i="0">그 줄에 문법 오류가 하나 있어서 컴파일이 안 되기 때문에</button>
+  <button data-i="1">주변보다 낮은 수준의 세부라서 추상화 수준이 어긋나기 때문에</button>
+  <button data-i="2">계산이 느려져서 결제 응답 시간이 크게 늘어나기 때문에</button>
+  <p class="verdict" hidden></p>
+  <p class="explain" hidden><strong>핵심:</strong> checkout의 다른 줄은 "합계·할인·결제·영수증" 같은 줄거리 수준인데,
+  이 줄만 곱셈 루프 수준의 세부입니다. 고도가 어긋나면 읽는 사람이 다시 오르내려야 하죠.
+  이 세부는 <code>totalPrice()</code> 이름 뒤에 감춰져 있어야 합니다.</p>
+</div>
+
+<div class="quiz" data-answer="2">
+  <p class="q">추출한 메서드 이름으로 가장 좋은 것은? (모두 같은 동작을 한다고 가정)</p>
+  <button data-i="0"><code>doDiscountLogicForUserGradeCheck()</code></button>
+  <button data-i="1"><code>process2()</code></button>
+  <button data-i="2"><code>applyGradeDiscount()</code></button>
+  <p class="verdict" hidden></p>
+  <p class="explain" hidden><strong>핵심:</strong> 좋은 이름은 <em>무엇을 하는지</em>를 딱 필요한 만큼 드러냅니다.
+  <code>applyGradeDiscount</code>는 의도가 분명하고 checkout의 다른 줄과 같은 높이입니다.
+  너무 장황한 이름(0번)이나 의미 없는 이름(1번)은 오히려 추상을 망칩니다.</p>
+</div>
+
+<h2>1분 실습 — 당신 차례</h2>
+<p>
+아래 메서드를 눈으로 리팩토링해 보세요. <strong>어느 줄이 "너무 낮은 수준"이라 이름 뒤로 감춰야 할까요?</strong>
+어떤 이름의 메서드로 뽑을지 종이나 주석으로 적어보고, 저(선생님)에게 결과를 보여주세요.
+</p>
+<pre><code><span class="c-kw">void</span> register(SignupForm form) {
+  <span class="c-kw">if</span> (!form.getEmail().contains(<span class="c-str">"@"</span>)) <span class="c-kw">throw new</span> InvalidEmail();
+  <span class="c-kw">if</span> (form.getPassword().length() &lt; <span class="c-kw">8</span>) <span class="c-kw">throw new</span> WeakPassword();
+  String hash = sha256(form.getPassword() + SALT);
+  userRepo.save(<span class="c-kw">new</span> User(form.getEmail(), hash));
+  mail.send(form.getEmail(), <span class="c-str">"환영합니다"</span>, welcomeBody());
+}</code></pre>
+<p class="note">힌트: "검증"과 "비밀번호 해싱"은 각각 이름 하나로 감출 수 있는 세부입니다.
+목표 모습 → <code>validate(form); User user = createUser(form); userRepo.save(user); sendWelcome(user);</code></p>
+
+<div class="source">
+  <span class="label">Primary source</span><br>
+  가장 신뢰할 만한 원출처: <a href="https://www.oreilly.com/library/view/clean-code-a/9780136083238/">Robert C. Martin, <em>Clean Code</em> — Ch.3 "Functions"</a>
+  (특히 "One Level of Abstraction per Function"). 빠른 요약은
+  <a href="https://gist.github.com/wojteklu/73c6914cc446146b8b533c0988cf8d29">이 한 페이지 요약</a>,
+  이번 냄새의 이름·처방은 <a href="https://refactoring.guru/refactoring/smells/long-method">Refactoring Guru — Long Method</a>.
+</div>
+
+<div class="ask">
+  <strong>막히면 선생님(저)에게 물어보세요.</strong> "이 함수 어디까지 쪼개야 해요?", "이름이 이게 맞나요?",
+  "제가 리팩토링한 register 봐주세요" — 무엇이든 좋습니다. 다음 레슨은 이 추상 개념을
+  <strong>객체(캡슐화)</strong>로 확장합니다: 데이터와 그 데이터를 다루는 로직을 어떻게 이름 뒤로 감추는가.
+</div>
+
+<div class="lesson-nav">
+  <span>← 코스 시작</span>
+  <span><a href="0002-encapsulation-tell-dont-ask.html">Lesson 02 · 캡슐화 →</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

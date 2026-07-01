@@ -1,0 +1,152 @@
+/* Shared lesson stylesheet — Tufte-inspired.
+   Every lesson links this so the course looks like one consistent book. */
+
+:root {
+  --ink: #111010;
+  --paper: #fdfcf9;
+  --muted: #6b6660;
+  --rule: #e2ddd3;
+  --accent: #7a1f12;      /* deep brick red — clean-code brand accent */
+  --good: #1f6b3a;
+  --bad: #9a2b1e;
+  --code-bg: #f4f1ea;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --mono: "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
+}
+
+html { font-size: 17px; }
+
+body {
+  font-family: var(--serif);
+  color: var(--ink);
+  background: var(--paper);
+  line-height: 1.55;
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 4rem 1.6rem 8rem;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- Course header / breadcrumb --- */
+.kicker {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.4rem;
+}
+h1 { font-weight: 600; font-size: 2.0rem; line-height: 1.15; margin: 0 0 0.3rem; }
+h2 { font-weight: 600; font-size: 1.28rem; margin: 2.6rem 0 0.6rem; }
+h3 { font-weight: 600; font-size: 1.05rem; margin: 1.8rem 0 0.4rem; }
+.subtitle { color: var(--muted); font-style: italic; font-size: 1.05rem; margin-top: 0; }
+
+p, li { font-size: 1.02rem; }
+a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--rule); }
+a:hover { border-color: var(--accent); }
+
+hr { border: none; border-top: 1px solid var(--rule); margin: 2.4rem 0; }
+
+/* --- Sidenote / margin callouts --- */
+.note {
+  border-left: 3px solid var(--rule);
+  padding: 0.2rem 0 0.2rem 1rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin: 1.2rem 0;
+}
+.note strong { color: var(--ink); }
+
+/* --- Key idea box --- */
+.key {
+  background: #fbf6ee;
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--accent);
+  border-radius: 4px;
+  padding: 1rem 1.2rem;
+  margin: 1.6rem 0;
+}
+.key .label {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+/* --- Code --- */
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 0.86rem;
+  line-height: 1.5;
+  tab-size: 2;
+}
+code { font-family: var(--mono); font-size: 0.88em; background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 3px; }
+pre code { background: none; padding: 0; font-size: 1em; }
+.c-cmt  { color: #8a857c; font-style: italic; }
+.c-kw   { color: #7a1f12; font-weight: 600; }
+.c-type { color: #245b7a; }
+.c-str  { color: #1f6b3a; }
+.c-bad  { background: rgba(154,43,30,0.12); border-radius: 2px; }
+.c-good { background: rgba(31,107,58,0.12); border-radius: 2px; }
+
+/* --- Before / after two-up --- */
+.twoup { display: grid; grid-template-columns: 1fr; gap: 0.8rem; }
+@media (min-width: 52rem) { .twoup { grid-template-columns: 1fr 1fr; } }
+.twoup .tag {
+  font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.1em;
+  text-transform: uppercase; margin-bottom: 0.3rem;
+}
+.twoup .before .tag { color: var(--bad); }
+.twoup .after  .tag { color: var(--good); }
+
+/* --- Footer nav / meta --- */
+.lesson-nav {
+  margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--rule);
+  display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem;
+  font-family: var(--mono); font-size: 0.8rem;
+}
+.ask {
+  margin-top: 2.4rem; background: #f2f4f1; border-radius: 6px;
+  padding: 1rem 1.2rem; font-size: 0.95rem; color: var(--muted);
+}
+.ask strong { color: var(--ink); }
+.source {
+  margin-top: 1.4rem; font-size: 0.9rem; color: var(--muted);
+}
+.source .label {
+  font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--accent);
+}
+
+/* --- Quiz widget (assets/quiz.js) --- */
+.quiz {
+  background: #fbf9f4; border: 1px solid var(--rule); border-radius: 6px;
+  padding: 1.1rem 1.2rem; margin: 1.8rem 0;
+}
+.quiz .q { font-weight: 600; margin: 0 0 0.8rem; }
+.quiz button {
+  display: block; width: 100%; text-align: left; margin: 0.4rem 0;
+  font-family: var(--serif); font-size: 0.98rem; color: var(--ink);
+  background: var(--paper); border: 1px solid var(--rule); border-radius: 5px;
+  padding: 0.55rem 0.8rem; cursor: pointer; transition: background 0.12s, border-color 0.12s;
+}
+.quiz button:hover:not(:disabled) { border-color: var(--accent); background: #fff; }
+.quiz button:disabled { cursor: default; }
+.quiz button.correct { background: rgba(31,107,58,0.14); border-color: var(--good); color: var(--good); font-weight: 600; }
+.quiz button.wrong   { background: rgba(154,43,30,0.12); border-color: var(--bad); color: var(--bad); text-decoration: line-through; }
+.quiz .verdict { margin: 0.8rem 0 0; font-weight: 600; font-size: 0.95rem; }
+.quiz .verdict.ok { color: var(--good); }
+.quiz .verdict.no { color: var(--bad); }
+.quiz .explain {
+  margin: 0.6rem 0 0; padding-top: 0.6rem; border-top: 1px dashed var(--rule);
+  font-size: 0.94rem; color: var(--muted);
+}
+.quiz .explain strong { color: var(--ink); }
